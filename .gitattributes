@@ -1,0 +1,42 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Python files
+*.py text diff=python
+*.pyi text diff=python
+
+# Jupyter notebook
+*.ipynb text
+
+# Documentation
+*.md text diff=markdown
+*.txt text
+*.rst text
+
+# JSON files
+*.json text
+
+# YAML files
+*.yml text
+*.yaml text
+
+# Model files
+*.pt binary
+*.pth binary
+*.bin binary
+*.onnx binary
+
+# Data files
+*.csv text
+*.tsv text
+*.jsonl text
+
+# Git files
+.gitattributes text
+.gitignore text
+
+# VS Code files
+.vscode/* text
+
+# Requirements files
+requirements*.txt text
