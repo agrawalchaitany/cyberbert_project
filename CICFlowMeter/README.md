@@ -1,6 +1,6 @@
 # CICFlowMeter-Python
 
-A Python implementation of CICFlowMeter for network traffic analysis and flow-based feature extraction, capable of accurately extracting 84 network traffic flow features.
+A Python implementation of CICFlowMeter for network traffic analysis and flow-based feature extraction with real-time traffic classification using CyberBERT.
 
 ## Core Components
 
@@ -17,7 +17,13 @@ A Python implementation of CICFlowMeter for network traffic analysis and flow-ba
    - Bulk transfer analysis
    - Activity/idle periods tracking
 
-3. **Data Processing**
+3. **Real-time Classification**
+   - Integration with CyberBERT model
+   - 15 traffic classes support
+   - GPU acceleration (if available)
+   - Immediate threat detection
+
+4. **Data Processing**
    - Real-time packet processing
    - PCAP file analysis
    - Data preprocessing
@@ -32,13 +38,15 @@ A Python implementation of CICFlowMeter for network traffic analysis and flow-ba
   - scapy>=2.4.5
   - numpy>=1.19.5
   - pandas>=1.3.0
+  - torch>=1.8.0
+  - transformers>=4.5.0
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
-cd CICFlowMeter-Python
+git clone https://github.com/agrawalchaitany/cyberbert_project.git
+cd CICFlowMeter
 ```
 
 2. Create and activate virtual environment:
@@ -60,7 +68,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-From the project root directory (`C:\Users\DELL\Desktop\collage\projects\CyberBERT\CICFlowMeter`):
+From the project root directory:
 
 ### Basic Commands
 
@@ -69,26 +77,14 @@ From the project root directory (`C:\Users\DELL\Desktop\collage\projects\CyberBE
 python -m CICFlowMeter.CICFlowMeter.main -l
 ```
 
-2. Capture live traffic:
+2. Capture live traffic with real-time classification:
 ```bash
-python -m CICFlowMeter.CICFlowMeter.main -i <interface> -o flows.csv
+python -m CICFlowMeter.CICFlowMeter.main -i <interface> -o flows.csv -m models/cyberbert_model
 ```
 
-3. Process PCAP file:
+3. Process PCAP file with classification:
 ```bash
-python -m CICFlowMeter.CICFlowMeter.main -f input.pcap -o output.csv
-```
-
-### Advanced Options
-
-1. Capture with custom timeout and packet count:
-```bash
-python -m CICFlowMeter.CICFlowMeter.main -i <interface> -t 120 -c 1000 -o flows.csv
-```
-
-2. Process PCAP with specific packet limit:
-```bash
-python -m CICFlowMeter.CICFlowMeter.main -f input.pcap -c 5000 -o flows.csv
+python -m CICFlowMeter.CICFlowMeter.main -f input.pcap -o output.csv -m models/cyberbert_model
 ```
 
 ### Command Line Options
@@ -99,14 +95,34 @@ python -m CICFlowMeter.CICFlowMeter.main -f input.pcap -c 5000 -o flows.csv
 - `-t, --timeout`: Flow timeout in seconds (default: 120)
 - `-c, --count`: Number of packets to capture (0 = infinite)
 - `-l, --list`: List available interfaces
+- `-m, --model`: Path to trained CyberBERT model for real-time classification
 
 ### Output
 
 The tool generates a CSV file containing:
 - 84 flow features for each network flow
+- Real-time traffic classification labels
 - Features organized in 15 groups
 - High-precision numerical values
 - ISO format timestamps
+
+### Supported Traffic Classes
+
+1. BENIGN
+2. DDoS
+3. PortScan
+4. Bot
+5. Infiltration
+6. Web Attack - Brute Force
+7. Web Attack - XSS
+8. Web Attack - SQL Injection
+9. FTP-Patator
+10. SSH-Patator
+11. DoS slowloris
+12. DoS Slowhttptest
+13. DoS Hulk
+14. DoS GoldenEye
+15. Heartbleed
 
 ### Runtime Controls
 
@@ -117,6 +133,7 @@ The tool generates a CSV file containing:
   - Valid flow packets
   - Active flows
   - Completed flows
+  - Classification statistics
 
 ## Project Structure
 

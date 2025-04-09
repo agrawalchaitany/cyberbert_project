@@ -8,12 +8,12 @@ from tqdm import tqdm
 import sys
 from .features import FlowFeatures
 from .utils import PacketInfo, preprocess_value
+from ...src.services.flow_labeler import FlowLabeler
 
 class FlowMeter:
     """Manages network traffic flow metering and feature extraction"""
     
-    def __init__(self, timeout=120, db_path='flows.db'):
-        # Remove database deletion
+    def __init__(self, timeout=120, db_path='flows.db', model_path=None):
         self.active_flows = {}  # Changed from defaultdict to regular dict
         self.completed_flows = []
         self.timeout = timeout
@@ -28,6 +28,15 @@ class FlowMeter:
         self.processed_flows = set()  # Track flows we've already saved to DB
         self.flow_order = []  # Track order of flows
         self._setup_database()
+        
+        # Initialize flow labeler if model path is provided
+        self.flow_labeler = None
+        if model_path:
+            try:
+                self.flow_labeler = FlowLabeler(model_path)
+                print("Loaded CyberBERT model for real-time classification")
+            except Exception as e:
+                print(f"Warning: Could not load model: {str(e)}")
 
     def _setup_database(self):
         """Initialize SQLite database and create table if not exists"""
@@ -202,6 +211,10 @@ class FlowMeter:
                             flow = self.active_flows[flow_id]
                             flow._finalize_calculations()
                             features = flow.get_features()
+                            
+                            # Get real-time prediction if labeler is available
+                            if self.flow_labeler:
+                                features['Label'] = self.flow_labeler.predict(features)
                             
                             # Convert timestamp to datetime string format
                             features['Timestamp'] = pd.to_datetime(features['Timestamp'], unit='s').strftime('%Y-%m-%d %H:%M:%S.%f')

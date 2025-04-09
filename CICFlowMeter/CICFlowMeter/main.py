@@ -59,6 +59,8 @@ def parse_arguments():
                        help='Number of packets to capture (0 = infinite)')
     parser.add_argument('-t', '--timeout', type=int, default=DEFAULT_TIMEOUT,
                        help='Flow timeout in seconds')
+    parser.add_argument('-m', '--model',
+                       help='Path to trained CyberBERT model for real-time classification')
     
     args = parser.parse_args()
     
@@ -83,8 +85,8 @@ def main():
         # Set up signal handler for Ctrl+C
         signal.signal(signal.SIGINT, signal_handler)
 
-        # Initialize flow meter with timeout
-        flow_meter = FlowMeter(timeout=args.timeout)
+        # Initialize flow meter with optional model
+        flow_meter = FlowMeter(timeout=args.timeout, model_path=args.model)
         print("\nCICFlowMeter-Python")
         print("-------------------")
         print("Starting packet capture... Press Ctrl+C to stop\n")

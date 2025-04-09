@@ -218,12 +218,12 @@ python predict.py --input flows.csv --model models/trained_cyberbert --output pr
 
 If you use this project in your research, please cite:
 ```
-@software{cyberbert2024,
-  author = {Your Name},
+@software{cyberbert2025,
+  author = Chaitany Agrawal,
   title = {CyberBERT: Network Traffic Classification Using BERT},
-  year = {2024},
+  year = {2025},
   publisher = {GitHub},
-  url = {https://github.com/yourusername/cyberbert}
+  url = {https://github.com/agrawalchaitany/cyberbert_project}
 }
 ```
 
