@@ -17,18 +17,12 @@ class FlowLabeler:
             0: "BENIGN",
             1: "DDoS",
             2: "PortScan", 
-            3: "Bot",
-            4: "Infiltration",
-            5: "Web Attack � Brute Force",
-            6: "Web Attack � XSS",
-            7: "Web Attack � Sql Injection",
-            8: "FTP-Patator",
-            9: "SSH-Patator",
-            10: "DoS slowloris",
-            11: "DoS Slowhttptest",
-            12: "DoS Hulk",
-            13: "DoS GoldenEye",
-            14: "Heartbleed"
+            3: "FTP-Patator",
+            4: "SSH-Patator",
+            5: "DoS slowloris",
+            6: "DoS Slowhttptest",
+            7: "DoS GoldenEye"
+            
         }
     
     def _features_to_text(self, features: Dict[str, Any]) -> str:

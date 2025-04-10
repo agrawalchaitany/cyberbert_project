@@ -3,7 +3,7 @@
 from transformers import BertTokenizer, BertForSequenceClassification
 
 # Define model name (pre-trained BERT)
-MODEL_NAME = "bert-base-uncased"
+MODEL_NAME = "distilbert-base-uncased"
 
 # Load tokenizer and model
 tokenizer = BertTokenizer.from_pretrained(MODEL_NAME)
