@@ -1,0 +1,8 @@
+{
+  "train_loss": [],
+  "val_loss": [],
+  "train_acc": [],
+  "val_acc": [],
+  "train_f1": [],
+  "val_f1": []
+}

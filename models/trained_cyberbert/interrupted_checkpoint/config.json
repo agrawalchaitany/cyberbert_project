@@ -1,0 +1,68 @@
+{
+  "activation": "gelu",
+  "architectures": [
+    "BertForSequenceClassification"
+  ],
+  "attention_dropout": 0.1,
+  "attention_probs_dropout_prob": 0.1,
+  "class_weights": [
+    0.5071710348129272,
+    1.0336703062057495,
+    2.03372859954834,
+    1.7923691272735596,
+    0.5853520035743713,
+    3.301966905593872
+  ],
+  "classifier_dropout": 0.2,
+  "dim": 768,
+  "dropout": 0.1,
+  "hidden_act": "gelu",
+  "hidden_dim": 3072,
+  "hidden_dropout_prob": 0.2,
+  "hidden_size": 768,
+  "id2label": {
+    "0": "BENIGN",
+    "1": "DDoS",
+    "2": "PortScan",
+    "3": "FTP-Patator",
+    "4": "SSH-Patator",
+    "5": "DoS slowloris"
+  },
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "label2id": {
+    "BENIGN": 0,
+    "DDoS": 1,
+    "DoS slowloris": 5,
+    "FTP-Patator": 3,
+    "PortScan": 2,
+    "SSH-Patator": 4
+  },
+  "layer_norm_eps": 1e-12,
+  "max_position_embeddings": 512,
+  "model_type": "bert",
+  "n_heads": 12,
+  "n_layers": 6,
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "pad_token_id": 0,
+  "position_embedding_type": "absolute",
+  "qa_dropout": 0.1,
+  "seq_classif_dropout": 0.2,
+  "sinusoidal_pos_embds": false,
+  "task_specific_params": {
+    "cybersecurity_classification": {
+      "created_with": "CyberBERT Trainer",
+      "hardware": "CPU: AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD",
+      "num_labels": 6,
+      "training_data": "unknown",
+      "training_date": "2025-04-11 14:55:54"
+    }
+  },
+  "tie_weights_": true,
+  "torch_dtype": "float32",
+  "transformers_version": "4.50.3",
+  "type_vocab_size": 2,
+  "use_cache": true,
+  "vocab_size": 30522
+}

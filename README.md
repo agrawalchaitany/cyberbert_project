@@ -20,6 +20,8 @@ A deep learning model for network traffic classification that leverages BERT arc
 - Class weight balancing for imbalanced datasets
 - Visualizations of training metrics and confusion matrices
 - Advanced system monitoring for resource tracking during training
+- Consolidated runner scripts for Windows and Linux/Mac
+- Environment variable configuration via .env file
 
 ## Project Structure
 
@@ -48,13 +50,12 @@ cyberbert_project/
 │   ├── training/
 │   │   └── trainer.py     # Model training logic
 │   └── utils/
-│       ├── hardware_utils.py # Hardware optimization utilities
 │       ├── system_monitor.py # System resource monitoring
 │       ├── metrics.py        # Metrics tracking and visualization
 │       ├── logger.py         # Logging configuration
 │       └── config.py         # Configuration management
+├── .env                   # Environment configuration file
 ├── requirements_base.txt   # Project dependencies
-├── setup.py               # Installation script
 ├── train.py               # Main training script
 ├── consolidated_runner.bat # Windows batch script for execution
 └── consolidated_runner.sh  # Linux/Mac shell script for execution
@@ -63,7 +64,7 @@ cyberbert_project/
 ## Requirements
 
 ```
-torch>=2.6.0
+torch>=2.0.0
 transformers>=4.49.0
 pandas>=2.2.3
 numpy>=2.2.3
@@ -72,64 +73,62 @@ tqdm>=4.65.0
 matplotlib>=3.8.0
 seaborn>=0.13.0
 psutil>=5.9.0
-GPUtil>=1.4.0
+python-dotenv>=1.0.0
 ```
 
-## Installation
+## Installation and Usage
 
-1. Clone the repository:
+The project now uses consolidated runner scripts that handle environment setup, model download, dataset download, and training in a single unified interface.
+
+### Using the Consolidated Runner Scripts
+
+#### Windows:
 ```bash
-git clone https://github.com/agrawalchaitany/cyberbert_project.git
-cd cyberbert_project
+consolidated_runner.bat
 ```
 
-2. Install dependencies:
+#### Linux/Mac:
 ```bash
-python setup.py
+chmod +x consolidated_runner.sh
+./consolidated_runner.sh
 ```
 
-### CPU-Only Installation
+### Options in Consolidated Runner
 
-For systems without CUDA-capable GPU:
+The consolidated runner provides four operation modes:
 
-```bash
-# Remove existing PyTorch installations
-pip uninstall torch torchvision torchaudio
+1. **Setup environment and train**: Creates a virtual environment, installs dependencies, downloads model, downloads dataset (if URL provided), and runs training
+2. **Just train**: Skips environment setup and proceeds directly to training
+3. **Download model only**: Only downloads the pre-trained model specified in the .env file
+4. **Download dataset only**: Only downloads the dataset from the URL specified in the .env file
 
-# Install CPU-only PyTorch
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+### Configuration via .env File
 
-# Install remaining requirements
-pip install -r requirements_base.txt
+The project uses a .env file for configuration:
+
+```
+# Model to download
+MODEL_NAME=distilbert-base-uncased
+
+# Dataset URL (leave empty if no dataset to download)
+DATASET_URL=
+
+# Training parameters
+EPOCHS=10
+BATCH_SIZE=32
+MAX_LENGTH=256
+FEATURE_COUNT=40
+
+# CPU-specific parameters (used when no GPU is available)
+CPU_EPOCHS=3
+CPU_BATCH_SIZE=8
+CPU_MAX_LENGTH=128
+CPU_FEATURE_COUNT=20
 ```
 
-### Additional Dependencies
+Edit this file to customize the model, dataset URL, and training parameters before running the consolidated scripts.
 
-For system monitoring with GPU support:
-```bash
-pip install GPUtil
-```
-
-## Usage
-
-### Real-time Traffic Classification
-
-1. Start real-time monitoring:
-```bash
-python -m CICFlowMeter.CICFlowMeter.main -i <interface> -o flows.csv -m models/cyberbert_model
-```
-
-2. Process existing PCAP with classification:
-```bash
-python -m CICFlowMeter.CICFlowMeter.main -f input.pcap -o output.csv -m models/cyberbert_model
-```
-
-### Training the Model
-
-Basic training with default parameters (auto-detects hardware):
-```bash
-python train.py
-```
+### Manual Usage (Alternative)
 
 #### For GPU Users:
 ```bash
@@ -141,9 +140,6 @@ python train.py --data "data/processed/clean_data.csv" \
                 --cache-tokenization \
                 --feature-count 40 \
                 --max-length 256
-
-# GPU training for larger datasets
-python train.py --mixed-precision --cache-tokenization --batch-size 16
 ```
 
 #### For CPU Users:
@@ -156,9 +152,6 @@ python train.py --data "data/processed/clean_data.csv" \
                 --sample-frac 0.8 \
                 --feature-count 20 \
                 --no-cache-tokenization
-
-# CPU training for limited memory systems
-python train.py --batch-size 4 --max-length 96 --sample-frac 0.5 --feature-count 15
 ```
 
 ### Command Line Arguments
@@ -336,25 +329,20 @@ python predict.py --input flows.csv --model models/trained_cyberbert --output pr
 ## Troubleshooting
 
 ### Memory Issues
-- Decrease batch size using `--batch-size`
-- Disable tokenization caching with `--no-cache-tokenization`
-- Use a smaller subset of data with `--sample-frac 0.5`
-- Reduce maximum sequence length with `--max-length 128`
-- Enable gradient checkpointing (automatic on systems with < 12GB memory)
-- Monitor memory usage with `--monitor-system` to identify bottlenecks
+- Decrease batch size in the .env file by reducing BATCH_SIZE and CPU_BATCH_SIZE values
+- Reduce maximum sequence length by adjusting MAX_LENGTH and CPU_MAX_LENGTH in the .env file
+- Monitor memory usage with the consolidated runner to identify bottlenecks
 
 ### Slow Training
-- Enable mixed precision with `--mixed-precision` (requires CUDA GPU)
-- Use feature selection with `--feature-count 30`
+- Enable mixed precision through the consolidated runner (automatic on GPU systems)
 - Consider using a GPU for training (10-20x faster than CPU)
-- Optimize worker threads through hardware auto-detection
+- Reduce feature count by adjusting FEATURE_COUNT in the .env file
 - Use system monitoring to identify performance bottlenecks
 
 ### GPU Issues
-- Ensure GPUtil is installed for GPU monitoring: `pip install GPUtil`
-- For NVIDIA GPUs, ensure CUDA toolkit and appropriate drivers are installed
-- Monitor GPU memory and utilization with `--monitor-system`
-- If GPU memory is limited, reduce batch size and model complexity
+- Ensure appropriate CUDA drivers are installed for NVIDIA GPUs
+- The consolidated runner will automatically detect GPU capabilities
+- If GPU memory is limited, reduce batch size in the .env file
 
 ## Contributing
 
@@ -386,4 +374,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Hugging Face Transformers team
 - CICFlowMeter developers
 - Network security community
-- GPUtil developers for GPU monitoring capabilities
