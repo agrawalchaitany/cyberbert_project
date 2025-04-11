@@ -19,6 +19,7 @@ A deep learning model for network traffic classification that leverages BERT arc
 - Early stopping to prevent overfitting
 - Class weight balancing for imbalanced datasets
 - Visualizations of training metrics and confusion matrices
+- Advanced system monitoring for resource tracking during training
 
 ## Project Structure
 
@@ -42,13 +43,21 @@ cyberbert_project/
 │   │   └── dataset.py     # PyTorch dataset classes
 │   ├── data_preprocessing/
 │   │   └── data_cleaner.ipynb # Data cleaning notebook
+│   ├── services/
+│   │   └── flow_labeler.py # Flow labeling service
 │   ├── training/
 │   │   └── trainer.py     # Model training logic
 │   └── utils/
-│       └── hardware_utils.py # Hardware optimization utilities
+│       ├── hardware_utils.py # Hardware optimization utilities
+│       ├── system_monitor.py # System resource monitoring
+│       ├── metrics.py        # Metrics tracking and visualization
+│       ├── logger.py         # Logging configuration
+│       └── config.py         # Configuration management
 ├── requirements_base.txt   # Project dependencies
 ├── setup.py               # Installation script
-└── train.py              # Main training script
+├── train.py               # Main training script
+├── consolidated_runner.bat # Windows batch script for execution
+└── consolidated_runner.sh  # Linux/Mac shell script for execution
 ```
 
 ## Requirements
@@ -62,6 +71,8 @@ scikit-learn>=1.6.1
 tqdm>=4.65.0
 matplotlib>=3.8.0
 seaborn>=0.13.0
+psutil>=5.9.0
+GPUtil>=1.4.0
 ```
 
 ## Installation
@@ -90,6 +101,13 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 # Install remaining requirements
 pip install -r requirements_base.txt
+```
+
+### Additional Dependencies
+
+For system monitoring with GPU support:
+```bash
+pip install GPUtil
 ```
 
 ## Usage
@@ -159,6 +177,30 @@ python train.py --batch-size 4 --max-length 96 --sample-frac 0.5 --feature-count
 - `--cache-tokenization`: Cache tokenized data for faster training (uses more memory)
 - `--early-stopping`: Early stopping patience in epochs (default: 3)
 - `--eval-steps`: Evaluate on validation set every N steps (default: 100, 0 to disable)
+- `--monitor-system`: Enable detailed system resource monitoring (default: True)
+- `--monitor-interval`: Interval in seconds for system monitoring (default: 5.0)
+
+## System Monitoring
+
+CyberBERT includes a comprehensive system monitoring tool that tracks:
+
+- CPU usage (overall and per-core)
+- Memory usage (RAM and swap)
+- GPU utilization and memory (when available)
+- Disk usage and I/O statistics
+- Process-specific resource utilization
+
+To view system metrics during training:
+```bash
+python train.py --monitor-system --monitor-interval 2.0
+```
+
+To disable system monitoring (for minimal overhead):
+```bash
+python train.py --no-monitor-system
+```
+
+System metrics are logged to the console and saved to the output directory for later analysis.
 
 ## Supported Traffic Classes
 
@@ -192,6 +234,8 @@ CyberBERT includes several optimizations to improve training and inference speed
 7. **Optimized DataLoaders**: Configures appropriate number of worker threads based on available CPU cores.
 
 8. **Adaptive Batch Sizing**: Adjusts batch size based on available memory.
+
+9. **System Resource Monitoring**: Tracks hardware utilization to identify bottlenecks and optimize performance.
 
 ## Real-time Classification Performance
 
@@ -297,18 +341,20 @@ python predict.py --input flows.csv --model models/trained_cyberbert --output pr
 - Use a smaller subset of data with `--sample-frac 0.5`
 - Reduce maximum sequence length with `--max-length 128`
 - Enable gradient checkpointing (automatic on systems with < 12GB memory)
+- Monitor memory usage with `--monitor-system` to identify bottlenecks
 
 ### Slow Training
 - Enable mixed precision with `--mixed-precision` (requires CUDA GPU)
 - Use feature selection with `--feature-count 30`
 - Consider using a GPU for training (10-20x faster than CPU)
 - Optimize worker threads through hardware auto-detection
+- Use system monitoring to identify performance bottlenecks
 
-### Model Accuracy
-- Use class-weight balancing (automatic for imbalanced datasets)
-- Increase the number of training epochs with `--epochs 10`
-- Tune learning rate with `--learning-rate 3e-5`
-- Use more training data or augment existing data
+### GPU Issues
+- Ensure GPUtil is installed for GPU monitoring: `pip install GPUtil`
+- For NVIDIA GPUs, ensure CUDA toolkit and appropriate drivers are installed
+- Monitor GPU memory and utilization with `--monitor-system`
+- If GPU memory is limited, reduce batch size and model complexity
 
 ## Contributing
 
@@ -340,3 +386,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Hugging Face Transformers team
 - CICFlowMeter developers
 - Network security community
+- GPUtil developers for GPU monitoring capabilities

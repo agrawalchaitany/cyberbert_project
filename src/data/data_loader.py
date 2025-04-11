@@ -3,12 +3,14 @@ import numpy as np
 from sklearn.feature_selection import SelectKBest, f_classif
 
 class CyberDataLoader:
+    """
+    Simplified data loader for CyberBERT with streamlined functionality
+    """
     def __init__(self):
         self.label_column = None
         self.num_labels = None
-        self.important_features = None
         self.selected_features = None
-        # Define the expected labels for your model
+        # Define the expected labels
         self.expected_labels = [
             "BENIGN",
             "DDoS",
@@ -19,14 +21,9 @@ class CyberDataLoader:
             "DoS Slowhttptest",
             "DoS GoldenEye"
         ]
-
-    def normalize_labels(self, labels):
-        """
-        Normalize label names to ensure consistency with the expected labels
-        """
-        normalized = []
-        mapping = {
-            # Common variations and typos
+        
+        # Label normalization mapping
+        self.label_mapping = {
             "benign": "BENIGN",
             "normal": "BENIGN",
             "ddos": "DDoS",
@@ -52,13 +49,17 @@ class CyberDataLoader:
             "dos_goldeneye": "DoS GoldenEye",
             "goldeneye": "DoS GoldenEye"
         }
+
+    def normalize_labels(self, labels):
+        """Normalize label names to ensure consistency with the expected labels"""
+        normalized = []
         
         for label in labels:
             # Convert to string in case it's not already
             label_str = str(label).strip()
             # Check if label needs normalization
-            if label_str.lower() in mapping:
-                normalized.append(mapping[label_str.lower()])
+            if label_str.lower() in self.label_mapping:
+                normalized.append(self.label_mapping[label_str.lower()])
             else:
                 # Keep the original if it's already in expected format
                 if label_str in self.expected_labels:
@@ -71,13 +72,17 @@ class CyberDataLoader:
 
     def load_data(self, data_path, feature_selection=True, n_features=30, sample_fraction=1.0):
         """
-        Load and preprocess the data from CSV file with optimizations.
+        Load and preprocess the data from CSV file
         
         Args:
             data_path: Path to the CSV data file
             feature_selection: Whether to perform feature selection
             n_features: Number of top features to select if feature_selection is True
             sample_fraction: Fraction of data to sample for faster development
+        
+        Returns:
+            texts: List of feature strings formatted for BERT
+            labels: Array of normalized label strings
         """
         print(f"Loading data from {data_path}")
         
@@ -90,7 +95,7 @@ class CyberDataLoader:
             df = df.sample(frac=sample_fraction, random_state=42)
             print(f"Sampled {len(df)} records from {original_size} (fraction: {sample_fraction})")
         
-        # Try different possible label column names
+        # Find label column
         possible_label_columns = ['Label', 'label', 'class', 'Class', 'target', 'Target']
         for col in possible_label_columns:
             if col in df.columns:
@@ -100,16 +105,12 @@ class CyberDataLoader:
         if self.label_column is None:
             raise ValueError(f"No label column found. Expected one of: {possible_label_columns}")
 
-        # Extract features and labels
-        labels = df[self.label_column].values
-        
-        # Normalize labels to ensure consistency
-        labels = self.normalize_labels(labels)
+        # Extract and normalize labels
+        labels = self.normalize_labels(df[self.label_column].values)
         
         # Print label distribution
         print("\nLabel distribution:")
-        label_counts = pd.Series(labels).value_counts()
-        for label, count in label_counts.items():
+        for label, count in pd.Series(labels).value_counts().items():
             print(f"- {label}: {count} samples ({count/len(labels)*100:.1f}%)")
         
         # Select features
@@ -117,61 +118,63 @@ class CyberDataLoader:
         
         # Perform feature selection if requested
         if feature_selection:
-            # Keep track of feature names
-            feature_names = X.columns
-            
-            # Handle missing or non-numeric values
-            X_clean = X.fillna(0)
-            
-            # Select top features using ANOVA F-statistic
-            selector = SelectKBest(f_classif, k=min(n_features, len(X.columns)))
-            selector.fit(X_clean, labels)
-            
-            # Get mask of selected features
-            feature_mask = selector.get_support()
-            
-            # Get selected feature names
-            self.selected_features = feature_names[feature_mask].tolist()
-            
-            print(f"\nSelected top {len(self.selected_features)} features:")
-            # Print top 10 features with their scores
-            scores = selector.scores_
-            sorted_idx = np.argsort(scores[feature_mask])[::-1]
-            top_features = [self.selected_features[i] for i in sorted_idx[:10]]
-            print(", ".join(top_features))
-            
-            # Use only selected features
-            X = X[self.selected_features]
+            X = self._select_features(X, labels, n_features)
         
         # Convert numeric data to manageable precision
         for col in X.select_dtypes(include=['float64']).columns:
             X[col] = X[col].round(3)
         
         # Convert features to string for BERT processing
-        features = X.values
-        texts = [' '.join([f"{col}={val}" for col, val in zip(X.columns, row)]) for row in features]
+        texts = [' '.join([f"{col}={val}" for col, val in zip(X.columns, row)]) for row in X.values]
         
-        # Print a sample to show format
+        # Print a sample
         print(f"\nSample text input for BERT:")
         print(texts[0][:100] + "..." if len(texts[0]) > 100 else texts[0])
         
         # Store number of unique labels
         self.num_labels = len(np.unique(labels))
         print(f"\nNumber of unique labels: {self.num_labels}")
-        print(f"Expected labels: {self.expected_labels[:self.num_labels]}")
         
         return texts, labels
+    
+    def _select_features(self, X, labels, n_features):
+        """Select the most important features using ANOVA F-statistic"""
+        # Keep track of feature names
+        feature_names = X.columns
+        
+        # Handle missing values
+        X_clean = X.fillna(0)
+        
+        # Select top features
+        selector = SelectKBest(f_classif, k=min(n_features, len(X.columns)))
+        selector.fit(X_clean, labels)
+        
+        # Get mask of selected features
+        feature_mask = selector.get_support()
+        
+        # Get selected feature names
+        self.selected_features = feature_names[feature_mask].tolist()
+        
+        print(f"\nSelected top {len(self.selected_features)} features:")
+        # Print top 10 features with their scores
+        scores = selector.scores_
+        sorted_idx = np.argsort(scores[feature_mask])[::-1]
+        top_features = [self.selected_features[i] for i in sorted_idx[:10]]
+        print(", ".join(top_features))
+        
+        # Return only selected features
+        return X[self.selected_features]
 
     def get_num_labels(self):
-        """Return the number of unique labels in the dataset."""
+        """Return the number of unique labels in the dataset"""
         if self.num_labels is None:
-            raise ValueError("Data hasn't been loaded yet. Call load_data() first.")
+            raise ValueError("Data hasn't been loaded yet. Call load_data() first")
         return self.num_labels
         
     def get_selected_features(self):
-        """Return the list of selected features if feature selection was performed."""
+        """Return the list of selected features if feature selection was performed"""
         return self.selected_features
         
     def get_expected_labels(self):
-        """Return the list of expected labels in the correct order."""
-        return self.expected_labels[:self.num_labels]
+        """Return the list of expected labels in the correct order"""
+        return self.expected_labels[:self.num_labels] if self.num_labels else self.expected_labels
