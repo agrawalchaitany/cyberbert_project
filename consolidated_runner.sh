@@ -14,16 +14,27 @@ fi
 if [ ! -f .env ]; then
     echo "Creating default .env file..."
     cat > .env << EOF
-MODEL_NAME=bert-base-uncased
+# CyberBERT Environment Configuration
+
+# Model to download
+MODEL_NAME=distilbert-base-uncased
+
+# Dataset URL (leave empty if no dataset to download)
 DATASET_URL=
-EPOCHS=5
-BATCH_SIZE=32
-FEATURE_COUNT=20
-MAX_LENGTH=128
-CPU_EPOCHS=3
-CPU_BATCH_SIZE=16
-CPU_MAX_LENGTH=128
-CPU_FEATURE_COUNT=20
+
+# Training parameters
+EPOCHS=2
+BATCH_SIZE=8
+FEATURE_COUNT=10
+MAX_LENGTH=96
+SAMPLE_FRACTION=0.2
+
+# CPU-specific parameters (used when no GPU is available)
+CPU_EPOCHS=1
+CPU_BATCH_SIZE=4
+CPU_MAX_LENGTH=64
+CPU_FEATURE_COUNT=5
+CPU_SAMPLE_FRACTION=0.05
 EOF
     echo ".env file created"
 fi
@@ -135,8 +146,8 @@ if [ "$MODE" = "1" ] || [ "$MODE" = "3" ]; then
     # Check if MODEL_NAME is set
     if [ -z "$MODEL_NAME" ]; then
         echo "ERROR: MODEL_NAME not set in .env file."
-        echo "Setting default model to bert-base-uncased"
-        MODEL_NAME="bert-base-uncased"
+        echo "Setting default model to distilbert-base-uncased"
+        MODEL_NAME="distilbert-base-uncased"
     fi
     
     echo "Downloading model: $MODEL_NAME"
@@ -217,7 +228,7 @@ fi
 
 # Training section - only for modes 1 and 2
 if [ "$MODE" = "1" ] || [ "$MODE" = "2" ]; then
-    echo "Checking for GPU availability..."
+    echo "Detecting hardware configuration..."
 
     # Check if GPU is available with PyTorch
     if python -c "import torch; print(torch.cuda.is_available())" | grep -q "True"; then
@@ -230,7 +241,8 @@ if [ "$MODE" = "1" ] || [ "$MODE" = "2" ]; then
                         --mixed-precision \
                         --cache-tokenization \
                         --feature-count "$FEATURE_COUNT" \
-                        --max-length "$MAX_LENGTH"
+                        --max-length "$MAX_LENGTH" \
+                        --sample-frac "${SAMPLE_FRACTION:-0.5}"
     else
         echo "No GPU detected. Using CPU-optimized settings..."
         
@@ -239,8 +251,9 @@ if [ "$MODE" = "1" ] || [ "$MODE" = "2" ]; then
                         --epochs "$CPU_EPOCHS" \
                         --batch-size "$CPU_BATCH_SIZE" \
                         --max-length "$CPU_MAX_LENGTH" \
-                        --sample-frac 0.8 \
-                        --feature-count "$CPU_FEATURE_COUNT"
+                        --sample-frac "${CPU_SAMPLE_FRACTION:-0.05}" \
+                        --feature-count "$CPU_FEATURE_COUNT" \
+                        --cache-tokenization
     fi
 
     echo "Training completed!"

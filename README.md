@@ -108,22 +108,24 @@ The project uses a .env file for configuration. If the file doesn't exist, the r
 
 ```
 # Model to download
-MODEL_NAME=bert-base-uncased
+MODEL_NAME=distilbert-base-uncased
 
 # Dataset URL (leave empty if no dataset to download)
 DATASET_URL=
 
 # Training parameters
-EPOCHS=5
-BATCH_SIZE=32
-FEATURE_COUNT=20
-MAX_LENGTH=128
+EPOCHS=2
+BATCH_SIZE=8
+FEATURE_COUNT=10
+MAX_LENGTH=96
+SAMPLE_FRACTION=0.2
 
 # CPU-specific parameters (used when no GPU is available)
-CPU_EPOCHS=3
-CPU_BATCH_SIZE=16
-CPU_MAX_LENGTH=128
-CPU_FEATURE_COUNT=20
+CPU_EPOCHS=1
+CPU_BATCH_SIZE=4
+CPU_MAX_LENGTH=64
+CPU_FEATURE_COUNT=5
+CPU_SAMPLE_FRACTION=0.05
 ```
 
 Edit this file to customize the model, dataset URL, and training parameters before running the consolidated scripts.
@@ -241,6 +243,30 @@ CyberBERT includes several optimizations to improve training and inference speed
 
 9. **System Resource Monitoring**: Tracks hardware utilization to identify bottlenecks and optimize performance.
 
+10. **CPU Training Optimizations**: Uses model architecture detection to correctly handle BERT vs DistilBERT model types, reducing model weight initialization errors.
+
+11. **Sample Fraction Control**: Allows training on a subset of data to accelerate CPU training for development and testing.
+
+12. **Model Architecture Detection**: Automatically detects and uses appropriate model classes (BERT vs DistilBERT) to prevent architecture mismatch warnings.
+
+## CPU Training Tips
+
+When training on CPU, which is significantly slower than GPU training, consider these additional optimizations:
+
+1. **Reduce Sample Size**: Set `CPU_SAMPLE_FRACTION=0.05` in `.env` to use only 5% of data for faster iterations
+   
+2. **Minimize Feature Count**: Set `CPU_FEATURE_COUNT=5` to use only the most important features
+   
+3. **Shorten Sequences**: Set `CPU_MAX_LENGTH=64` to reduce sequence length for faster processing
+   
+4. **One-Epoch Training**: For testing changes, set `CPU_EPOCHS=1` to complete training in less time
+   
+5. **Reduce Batch Size**: If memory errors occur, reduce `CPU_BATCH_SIZE` to 4 or even 1
+   
+6. **Enable Caching**: Set `"cache_tokenization": true` in the training configuration for faster repeated runs
+
+By implementing these optimizations, CPU training can be used effectively for development and testing, with final production models trained on GPU hardware.
+
 ## Real-time Classification Performance
 
 | Metric              | GPU Mode | CPU Mode |
@@ -349,11 +375,13 @@ python predict.py --input flows.csv --model models/trained_cyberbert --output pr
 - Consider using a GPU for training (10-20x faster than CPU)
 - Reduce feature count by adjusting FEATURE_COUNT in the .env file
 - Use system monitoring to identify performance bottlenecks
+- For CPU training, reduce the sample fraction significantly (5% is often sufficient for testing)
+- Switch to DistilBERT models which are about 40% faster than full BERT models
+- Reduce the max sequence length to 64 for CPU training to speed up processing
 
-### GPU Issues
-- Ensure appropriate CUDA drivers are installed for NVIDIA GPUs
-- The consolidated runner will automatically detect GPU capabilities
-- If GPU memory is limited, reduce batch size in the .env file
+### Model Architecture Issues
+- If you encounter warnings about "parameter shape mismatch" or "weights not being initialized", make sure the model type in your .env file matches the actual model architecture (BERT vs DistilBERT)
+- The system now automatically detects model architecture to prevent mismatch warnings
 
 ## Contributing
 
