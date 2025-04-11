@@ -369,19 +369,22 @@ def monitor_and_log_system(logger: logging.Logger, save_path: Optional[str] = No
     
     # Define callback function for system metrics
     def log_metrics(metrics: Dict[str, Any]) -> None:
-        # Log a summary line
+        # Log a summary line with visual bar graphs
         mem_used = metrics["memory"]["used_gb"]
         mem_total = metrics["memory"]["total_gb"]
+        mem_percent = (mem_used / mem_total) * 100 if mem_total > 0 else 0
         cpu_pct = metrics["cpu"]["percent_overall"]
         
-        # Construct GPU info string if available
-        gpu_info = ""
+        # Format the output in a more readable horizontal format
+        output = f"System: CPU {cpu_pct:.1f}%, RAM {mem_used:.1f}/{mem_total:.1f} GB"
+        
+        # Add GPU info if available
         if "gpu" in metrics and metrics["gpu"] and "devices" in metrics["gpu"]:
             for device in metrics["gpu"]["devices"]:
                 gpu_used = device.get('percent_used', 0)
-                gpu_info += f", GPU {device['id']}: {gpu_used:.1f}%"
+                output += f", GPU {device['id']}: {gpu_used:.1f}%"
         
-        logger.info(f"System: CPU {cpu_pct:.1f}%, RAM {mem_used:.1f}/{mem_total:.1f} GB{gpu_info}")
+        logger.info(output)
         
         # Track metrics if we have a tracker
         if metrics_tracker:
@@ -390,13 +393,18 @@ def monitor_and_log_system(logger: logging.Logger, save_path: Optional[str] = No
             # Periodically save metrics
             if "timestamp" in metrics and int(metrics["timestamp"]) % 300 < interval:  # Every ~5 minutes
                 metrics_tracker.save_metrics("system_metrics_latest.json")
+
+def create_progress_bar(percent: float, width: int = 20) -> str:
+    """Create a text-based progress bar
     
-    # Create and start the system monitor
-    monitor = SystemMonitor(
-        metrics_callback=log_metrics,
-        interval=interval,
-        logger=logger
-    )
-    monitor.start()
-    
-    return monitor
+    Args:
+        percent: Percentage value (0-100)
+        width: Width of the progress bar in characters
+        
+    Returns:
+        Text-based progress bar
+    """
+    filled_width = int(width * (percent / 100))
+    filled_width = min(filled_width, width)  # Ensure we don't exceed width
+    bar = '█' * filled_width + '░' * (width - filled_width)
+    return bar

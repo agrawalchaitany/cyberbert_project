@@ -1,0 +1,432 @@
+{
+  "summary_stats": {
+    "uptime": 21.25933527946472,
+    "training": {},
+    "inference": {}
+  },
+  "raw_metrics": {
+    "training": {},
+    "inference": {},
+    "system": {
+      "start_time": 1744363481.1206484,
+      "recent_stats": [
+        {
+          "timestamp": 1744363481.1206484,
+          "cpu": {
+            "percent_per_core": [
+              56.2,
+              53.1,
+              46.9,
+              45.5,
+              40.6,
+              28.1,
+              39.4,
+              60.6,
+              32.4,
+              18.2,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 35.083333333333336,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.3143119812011719,
+            "used_gb": 6.0374908447265625,
+            "percent": 82.1,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.300121307373047,
+            "swap_percent": 19.0,
+            "process": {
+              "rss_gb": 0.4168510437011719,
+              "vms_gb": 1.0763664245605469,
+              "peak_gb": 0.4336433410644531
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25745010375977,
+              "free_gb": 225.81871795654297,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125977.4755859375,
+              "write_mb": 68018.66943359375,
+              "read_count": 3636428,
+              "write_count": 1465568
+            }
+          }
+        },
+        {
+          "timestamp": 1744363484.8879008,
+          "cpu": {
+            "percent_per_core": [
+              34.3,
+              28.6,
+              52.9,
+              38.2,
+              41.2,
+              35.3,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 19.208333333333332,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.2995719909667969,
+            "used_gb": 6.0522308349609375,
+            "percent": 82.3,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.300121307373047,
+            "swap_percent": 19.0,
+            "process": {
+              "rss_gb": 0.44054412841796875,
+              "vms_gb": 1.0797920227050781,
+              "peak_gb": 0.5122108459472656
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25806045532227,
+              "free_gb": 225.81810760498047,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125981.0654296875,
+              "write_mb": 68019.85693359375,
+              "read_count": 3636474,
+              "write_count": 1465678
+            }
+          }
+        },
+        {
+          "timestamp": 1744363487.682996,
+          "cpu": {
+            "percent_per_core": [
+              30.3,
+              34.4,
+              37.5,
+              45.5,
+              25.0,
+              25.0,
+              9.4,
+              9.4,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 18.041666666666668,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.2582778930664062,
+            "used_gb": 6.093524932861328,
+            "percent": 82.9,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.300121307373047,
+            "swap_percent": 19.0,
+            "process": {
+              "rss_gb": 0.4915046691894531,
+              "vms_gb": 1.1296768188476562,
+              "peak_gb": 0.5122108459472656
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25812530517578,
+              "free_gb": 225.81804275512695,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125981.1279296875,
+              "write_mb": 68020.57568359375,
+              "read_count": 3636475,
+              "write_count": 1465737
+            }
+          }
+        },
+        {
+          "timestamp": 1744363490.4561605,
+          "cpu": {
+            "percent_per_core": [
+              65.7,
+              40.6,
+              45.5,
+              42.4,
+              42.4,
+              31.2,
+              50.0,
+              39.4,
+              31.2,
+              18.8,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 33.93333333333333,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.1927146911621094,
+            "used_gb": 6.159088134765625,
+            "percent": 83.8,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.300121307373047,
+            "swap_percent": 19.0,
+            "process": {
+              "rss_gb": 0.5517387390136719,
+              "vms_gb": 1.1897926330566406,
+              "peak_gb": 0.5529022216796875
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.2582664489746,
+              "free_gb": 225.81790161132812,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125989.8115234375,
+              "write_mb": 68032.09912109375,
+              "read_count": 3636729,
+              "write_count": 1465822
+            }
+          }
+        },
+        {
+          "timestamp": 1744363493.209528,
+          "cpu": {
+            "percent_per_core": [
+              50.0,
+              42.4,
+              42.4,
+              29.4,
+              21.2,
+              21.2,
+              38.9,
+              15.2,
+              0.0,
+              3.1,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 21.983333333333334,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.1600151062011719,
+            "used_gb": 6.1917877197265625,
+            "percent": 84.2,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.319385528564453,
+            "swap_percent": 19.1,
+            "process": {
+              "rss_gb": 0.6147079467773438,
+              "vms_gb": 1.2526206970214844,
+              "peak_gb": 0.6147079467773438
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25850296020508,
+              "free_gb": 225.81766510009766,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125990.1943359375,
+              "write_mb": 68047.07177734375,
+              "read_count": 3636745,
+              "write_count": 1465942
+            }
+          }
+        },
+        {
+          "timestamp": 1744363496.0091922,
+          "cpu": {
+            "percent_per_core": [
+              47.1,
+              21.2,
+              52.9,
+              39.4,
+              39.4,
+              21.2,
+              20.6,
+              27.3,
+              32.3,
+              3.2,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 25.38333333333333,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.1174392700195312,
+            "used_gb": 6.234363555908203,
+            "percent": 84.8,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.319385528564453,
+            "swap_percent": 19.1,
+            "process": {
+              "rss_gb": 0.6738243103027344,
+              "vms_gb": 1.3128242492675781,
+              "peak_gb": 0.6738243103027344
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25860977172852,
+              "free_gb": 225.81755828857422,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125991.3583984375,
+              "write_mb": 68053.27490234375,
+              "read_count": 3636760,
+              "write_count": 1466060
+            }
+          }
+        },
+        {
+          "timestamp": 1744363498.786004,
+          "cpu": {
+            "percent_per_core": [
+              41.2,
+              36.4,
+              33.3,
+              39.4,
+              34.4,
+              15.6,
+              28.1,
+              31.2,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 21.63333333333333,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.07012939453125,
+            "used_gb": 6.281673431396484,
+            "percent": 85.4,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.319385528564453,
+            "swap_percent": 19.1,
+            "process": {
+              "rss_gb": 0.7343292236328125,
+              "vms_gb": 1.3732109069824219,
+              "peak_gb": 0.7343292236328125
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25867080688477,
+              "free_gb": 225.81749725341797,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125993.62353515625,
+              "write_mb": 68054.39990234375,
+              "read_count": 3636833,
+              "write_count": 1466113
+            }
+          }
+        },
+        {
+          "timestamp": 1744363501.5642548,
+          "cpu": {
+            "percent_per_core": [
+              58.8,
+              64.7,
+              57.6,
+              36.4,
+              51.5,
+              33.3,
+              35.3,
+              23.5,
+              11.8,
+              11.8,
+              0.0,
+              0.0
+            ],
+            "percent_overall": 32.05833333333334,
+            "count_physical": 6,
+            "count_logical": 12,
+            "freq_current_mhz": 1893.0,
+            "freq_max_mhz": 2100.0
+          },
+          "memory": {
+            "total_gb": 7.351802825927734,
+            "available_gb": 1.0142822265625,
+            "used_gb": 6.337520599365234,
+            "percent": 86.2,
+            "swap_total_gb": 12.134349822998047,
+            "swap_used_gb": 2.319385528564453,
+            "swap_percent": 19.1,
+            "process": {
+              "rss_gb": 0.7938880920410156,
+              "vms_gb": 1.4328880310058594,
+              "peak_gb": 0.7958259582519531
+            }
+          },
+          "disk": {
+            "current_dir": {
+              "total_gb": 460.07616806030273,
+              "used_gb": 234.25885391235352,
+              "free_gb": 225.81731414794922,
+              "percent": 50.9
+            },
+            "io": {
+              "read_mb": 125994.26416015625,
+              "write_mb": 68055.39208984375,
+              "read_count": 3636844,
+              "write_count": 1466218
+            }
+          }
+        }
+      ]
+    }
+  }
+}

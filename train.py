@@ -24,6 +24,7 @@ import pandas as pd
 import numpy as np
 import traceback
 import json
+from dotenv import load_dotenv
 
 # Add project root to path for imports
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -33,9 +34,147 @@ sys.path.insert(0, project_root)
 from src.data.dataset import CyberSecurityDataset
 from src.training.trainer import CyberBERTTrainer
 from src.data.data_loader import CyberDataLoader
-from src.utils.hardware_utils import get_hardware_info, optimize_memory, print_hardware_summary, get_optimized_settings
 from src.utils.logger import Logger
 from src.utils.config import Config
+from src.utils.system_monitor import SystemMonitor, monitor_and_log_system
+
+def check_cuda_available():
+    """Check if CUDA is available on the system without requiring torch"""
+    try:
+        # Try importing CUDA toolkit
+        import ctypes
+        ctypes.CDLL("nvcuda.dll" if platform.system() == "Windows" else "libcuda.so.1")
+        return True
+    except:
+        return False
+
+def get_hardware_info() -> Dict[str, Any]:
+    """Get hardware information and determine optimal device for training"""
+    import torch
+    
+    info = {
+        'device': None,
+        'batch_size': 8,
+        'memory_gb': 0,
+        'description': '',
+        'supports_cuda': False,
+        'supports_mps': False,  # For Apple Silicon
+        'total_ram': psutil.virtual_memory().total / 1e9,  # GB
+        'cpu_count': psutil.cpu_count(logical=False) or 1,
+        'cpu_threads': psutil.cpu_count(logical=True) or 2
+    }
+    
+    # Check for CUDA first
+    if torch.cuda.is_available():
+        info['device'] = torch.device('cuda')
+        info['supports_cuda'] = True
+        info['memory_gb'] = torch.cuda.get_device_properties(0).total_memory / 1e9
+        info['gpu_name'] = torch.cuda.get_device_name(0)
+        info['batch_size'] = min(32, max(4, int(info['memory_gb'] / 1.5)))
+        info['description'] = f"GPU: {info['gpu_name']} ({info['memory_gb']:.1f}GB)"
+    # Then check for MPS (Apple Silicon)
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        info['device'] = torch.device('mps')
+        info['supports_mps'] = True
+        info['memory_gb'] = info['total_ram']  # Use system RAM as estimate
+        info['batch_size'] = min(16, max(2, int(info['total_ram'] / 3)))
+        info['description'] = f"Apple Silicon MPS ({info['memory_gb']:.1f}GB RAM)"
+    # Default to CPU
+    else:
+        info['device'] = torch.device('cpu')
+        info['memory_gb'] = info['total_ram']
+        info['batch_size'] = min(8, max(1, int(info['total_ram'] / 4)))
+        info['description'] = f"CPU: {platform.processor()}"
+    
+    # Set optimized parameters based on device
+    info['half_precision'] = info['supports_cuda']  # Use half precision on CUDA
+    info['gradient_checkpointing'] = info['memory_gb'] < 12  # Use gradient checkpointing on lower memory
+    info['worker_threads'] = min(4, max(0, info['cpu_threads'] - 2))  # Leave some cores for system
+    
+    return info
+
+def optimize_memory(hw_info: Dict[str, Any], model=None):
+    """Apply memory optimizations based on hardware"""
+    gc.collect()
+    
+    # CUDA-specific optimizations
+    if hw_info['supports_cuda']:
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
+        if model:
+            model.cuda()
+            torch.cuda.empty_cache()
+    # MPS-specific optimizations (Apple Silicon)
+    elif hw_info['supports_mps']:
+        if model:
+            model.to(hw_info['device'])
+    # CPU-specific optimizations
+    else:
+        torch.set_num_threads(hw_info['cpu_threads'])
+        if model:
+            model.cpu()
+    
+    # Enable gradient checkpointing if available and needed
+    if model and hasattr(model, 'gradient_checkpointing_enable') and hw_info['gradient_checkpointing']:
+        model.gradient_checkpointing_enable()
+        print("Gradient checkpointing enabled")
+
+def print_hardware_summary(hw_info: Dict[str, Any]):
+    """Print hardware configuration summary"""
+    print("\nHardware Configuration:")
+    print(f"- {hw_info['description']}")
+    print(f"- CPU Cores: {hw_info['cpu_count']} (Threads: {hw_info['cpu_threads']})")
+    print(f"- Available Memory: {hw_info['memory_gb']:.1f} GB")
+    print(f"- Device Type: {hw_info['device'].type}")
+    
+    if hw_info['supports_cuda']:
+        print(f"- CUDA Available: Yes")
+    elif hw_info.get('supports_mps', False):
+        print(f"- Apple Silicon MPS Available: Yes")
+    
+    print(f"- Recommended Batch Size: {hw_info['batch_size']}")
+    print(f"- Gradient Checkpointing: {'Enabled' if hw_info['gradient_checkpointing'] else 'Disabled'}")
+    print(f"- Half Precision: {'Enabled' if hw_info['half_precision'] else 'Disabled'}")
+    print(f"- DataLoader Workers: {hw_info['worker_threads']}")
+
+def get_optimized_settings(hw_info: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate optimal hyperparameters based on hardware configuration
+    """
+    settings = {
+        # Training settings
+        'batch_size': hw_info['batch_size'],
+        'max_length': 128,
+        'learning_rate': 2e-5,
+        'weight_decay': 0.01,
+        'mixed_precision': hw_info['supports_cuda'],
+        'gradient_accumulation_steps': 1,
+        
+        # DataLoader settings
+        'num_workers': hw_info['worker_threads'],
+        'pin_memory': hw_info['supports_cuda'],
+        
+        # Trainer settings
+        'eval_steps': 100 if hw_info['supports_cuda'] else 500,
+        'warmup_ratio': 0.1,
+        'gradient_checkpointing': hw_info['gradient_checkpointing'],
+        'early_stopping_patience': 3,
+    }
+    
+    # Adjust for different device types
+    if hw_info['supports_cuda']:
+        # On CUDA, we can use larger batches and faster evaluation
+        settings['learning_rate'] = 5e-5  # Slightly higher learning rate
+    elif hw_info.get('supports_mps', False):
+        # Apple Silicon specifics
+        settings['mixed_precision'] = False  # MPS doesn't support mixed precision yet
+    else:
+        # CPU optimizations
+        settings['max_length'] = 96  # Even shorter sequences on CPU
+        settings['learning_rate'] = 1e-5  # Lower learning rate for stability
+        settings['batch_size'] = max(1, settings['batch_size'])  # Ensure batch size is at least 1
+        
+    return settings
 
 def parse_args():
     """Parse command line arguments"""
@@ -69,10 +208,14 @@ def parse_args():
                         help='Logging level')
     parser.add_argument('--no-log-file', action='store_true', help='Disable logging to file')
     
+    # System monitoring arguments
+    parser.add_argument('--monitor-system', action='store_true', help='Enable system monitoring during training')
+    parser.add_argument('--monitor-interval', type=float, default=30.0, help='System monitoring interval in seconds')
+    
     return parser.parse_args()
 
 def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict[str, Any], 
-                                data_loader: CyberDataLoader, logger) -> BertForSequenceClassification:
+                                data_loader: CyberDataLoader, logger, data_path: str = None) -> BertForSequenceClassification:
     """
     Create a model with a fresh classification head for cybersecurity data
     
@@ -82,6 +225,7 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict
         hw_info: Hardware information
         data_loader: Data loader with label information
         logger: Logger instance
+        data_path: Path to dataset (optional)
     
     Returns:
         Initialized BERT model for sequence classification
@@ -104,21 +248,37 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict
             logger.debug(f"  {idx}: '{label}'")
         
         # Create new classification model with optimized config
-        config = BertConfig.from_pretrained(
-            model_path,
-            num_labels=num_labels,
-            hidden_dropout_prob=0.2,
-            classifier_dropout=0.2,
-            id2label=id2label,
-            label2id=label2id
-        )
+        try:
+            # First try loading config from model path
+            config = BertConfig.from_pretrained(model_path)
+            # Update config with our classification settings
+            config.num_labels = num_labels
+            config.hidden_dropout_prob = 0.2
+            config.classifier_dropout = 0.2  
+            config.id2label = id2label
+            config.label2id = label2id
+        except Exception as config_error:
+            logger.warning(f"Could not load config from {model_path}, creating new config: {str(config_error)}")
+            # Create config from scratch if loading fails
+            config = BertConfig(
+                hidden_size=768,
+                num_hidden_layers=12,
+                num_attention_heads=12,
+                intermediate_size=3072,
+                hidden_dropout_prob=0.2,
+                attention_probs_dropout_prob=0.1,
+                num_labels=num_labels,
+                classifier_dropout=0.2,
+                id2label=id2label,
+                label2id=label2id
+            )
         
         # Add training metadata to config
         config.task_specific_params = {
             "cybersecurity_classification": {
                 "num_labels": num_labels,
                 "created_with": "CyberBERT Trainer",
-                "training_data": os.path.basename(args.data),
+                "training_data": os.path.basename(data_path) if data_path else "unknown",
                 "training_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "hardware": hw_info['description'],
             }
@@ -144,6 +304,9 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict
 
 def main():
     try:
+        # Load environment variables from .env file
+        load_dotenv()
+        
         # Parse arguments
         global args
         args = parse_args()
@@ -151,6 +314,41 @@ def main():
         # Initialize configuration
         config = Config(args.config if args.config else None)
         config.update_from_args(args)
+        
+        # Override with environment variables if available
+        if args.data is None and "DATA_PATH" in os.environ:
+            config.set('data.data_path', os.environ.get("DATA_PATH", "data/processed/clean_data.csv"))
+            
+        if args.model is None and "MODEL_NAME" in os.environ:
+            config.set('model.model_path', f"models/cyberbert_model")
+            
+        if args.epochs is None:
+            # Use environment variable EPOCHS or CPU_EPOCHS based on hardware
+            if torch.cuda.is_available():
+                config.set('model.epochs', int(os.environ.get("EPOCHS", 10)))
+            else:
+                config.set('model.epochs', int(os.environ.get("CPU_EPOCHS", 3)))
+                
+        if args.batch_size is None:
+            # Use environment variable BATCH_SIZE or CPU_BATCH_SIZE based on hardware
+            if torch.cuda.is_available():
+                config.set('model.batch_size', int(os.environ.get("BATCH_SIZE", 32)))
+            else:
+                config.set('model.batch_size', int(os.environ.get("CPU_BATCH_SIZE", 8)))
+                
+        if args.max_length is None:
+            # Use environment variable MAX_LENGTH or CPU_MAX_LENGTH based on hardware
+            if torch.cuda.is_available():
+                config.set('data.max_length', int(os.environ.get("MAX_LENGTH", 256)))
+            else:
+                config.set('data.max_length', int(os.environ.get("CPU_MAX_LENGTH", 128)))
+                
+        if args.feature_count is None:
+            # Use environment variable FEATURE_COUNT or CPU_FEATURE_COUNT based on hardware
+            if torch.cuda.is_available():
+                config.set('data.feature_count', int(os.environ.get("FEATURE_COUNT", 40)))
+            else:
+                config.set('data.feature_count', int(os.environ.get("CPU_FEATURE_COUNT", 20)))
         
         # Initialize logger
         log_level = config.get('system.log_level', 'INFO')
@@ -169,6 +367,14 @@ def main():
         print_hardware_summary(hw_info)
         logger.info(f"Hardware: {hw_info['description']}")
         
+        # Initialize system monitoring if enabled
+        system_monitor = None
+        if args.monitor_system:
+            logger.info(f"Starting system monitoring with interval of {args.monitor_interval} seconds")
+            metrics_dir = os.path.join(config.get('model.output_dir', 'models/output'), 'metrics')
+            system_monitor = monitor_and_log_system(logger, metrics_dir, args.monitor_interval)
+            logger.info(f"System monitoring activated. Metrics will be saved to {metrics_dir}")
+        
         # Get optimized settings based on hardware
         opt_settings = get_optimized_settings(hw_info)
         
@@ -182,8 +388,20 @@ def main():
         
         # Extract configuration
         MODEL_PATH = config.get('model.model_path')
+        # Ensure model path is valid - use a default if needed
+        if MODEL_PATH is None:
+            MODEL_PATH = 'models/cyberbert_model'
+            logger.warning(f"Model path was not specified, using default: {MODEL_PATH}")
+            
         DATA_PATH = config.get('data.data_path')
-        EPOCHS = config.get('model.epochs')
+        
+        # Set appropriate epochs based on device
+        EPOCHS = config.get('model.epochs', 5)  # Default to 5 if not specified
+        if hw_info['device'].type == 'cpu':  # Use .type property instead of comparing with string
+            # If epochs not explicitly set but running on CPU, use a lower value
+            if args.epochs is None:
+                logger.warning(f"Running on CPU: Using CPU-optimized epochs setting from .env file")
+        
         LEARNING_RATE = config.get('model.learning_rate')
         MAX_LENGTH = min(config.get('data.max_length'), opt_settings['max_length'])
         SAVE_DIR = config.get('model.output_dir')
@@ -244,22 +462,25 @@ def main():
             logger.debug(traceback.format_exc())
             raise
         
-        # Create dataset with improved tokenization caching
+        # Create dataset with tokenization caching
         logger.info("Creating dataset")
         try:
+            # Set up cache directory if tokenization caching is enabled
+            cache_dir = "cache" if CACHE_TOKENIZATION else None
+            
             full_dataset = CyberSecurityDataset(
                 texts, 
                 labels, 
-                tokenizer, 
-                MAX_LENGTH, 
-                cache_tokenization=CACHE_TOKENIZATION
+                tokenizer_name_or_path=MODEL_PATH,
+                max_length=MAX_LENGTH,
+                cache_dir=cache_dir
             )
             
             # Get class weights directly from the dataset
             weight_tensor = full_dataset.get_class_weights().to(hw_info['device'])
             
             # Get label mappings for the model
-            label_mapping = full_dataset.get_label_map()
+            label_mapping = full_dataset.get_label_mapping()
             
             logger.info(f"Dataset created with {len(full_dataset)} samples")
         except Exception as e:
@@ -270,7 +491,7 @@ def main():
         # Create model with fresh classification head and proper label mapping
         logger.info("Creating model")
         try:
-            model = create_model_with_fresh_head(MODEL_PATH, num_labels, hw_info, data_loader, logger)
+            model = create_model_with_fresh_head(MODEL_PATH, num_labels, hw_info, data_loader, logger, DATA_PATH)
             
             # Store class weights in the model config as a list (JSON serializable)
             model.config.class_weights = weight_tensor.cpu().tolist()
@@ -375,6 +596,12 @@ def main():
             logger.error(f"Training failed: {str(e)}")
             logger.debug(traceback.format_exc())
             raise
+        finally:
+            # Stop system monitoring if it was enabled
+            if system_monitor:
+                logger.info("Stopping system monitoring")
+                system_monitor.stop()
+                logger.info("System monitoring stopped")
         
         # Display final execution time
         total_time = time.time() - start_time
@@ -403,6 +630,15 @@ def main():
         return 0
 
     except Exception as e:
+        # Stop system monitoring in case of error
+        if 'system_monitor' in locals() and system_monitor:
+            try:
+                system_monitor.stop()
+                if 'logger' in locals():
+                    logger.info("System monitoring stopped due to error")
+            except:
+                pass
+                
         if 'logger' in locals():
             logger.error(f"Fatal error: {str(e)}")
             logger.debug(traceback.format_exc())

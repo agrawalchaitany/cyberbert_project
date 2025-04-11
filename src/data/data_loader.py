@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 from sklearn.feature_selection import SelectKBest, f_classif
 
 class CyberDataLoader:
@@ -70,6 +71,67 @@ class CyberDataLoader:
         
         return np.array(normalized)
 
+    def _preprocess_data(self, df):
+        """
+        Preprocess data to handle problematic values:
+        - Replace infinities with NaN
+        - Replace NaN with 0
+        - Cap very large values to prevent float64 overflow
+        - Add small random noise to constant features
+        """
+        print("Preprocessing data to handle infinities and extreme values")
+        
+        # Make a copy to avoid modifying the original
+        df_clean = df.copy()
+        
+        # Replace infinities with NaN
+        df_clean = df_clean.replace([np.inf, -np.inf], np.nan)
+        
+        # Get numeric columns only
+        numeric_cols = df_clean.select_dtypes(include=['float64', 'int64']).columns
+        
+        # Calculate reasonable caps based on data distribution
+        caps = {}
+        for col in numeric_cols:
+            # Get percentiles, ignoring NaN values
+            values = df_clean[col].dropna()
+            if len(values) > 0:
+                q99 = values.quantile(0.99)
+                q01 = values.quantile(0.01)
+                
+                # Set caps at 3x the 99th percentile or 1e9, whichever is smaller
+                upper_cap = min(q99 * 3, 1e9)
+                lower_cap = max(q01 * 3 * (-1), -1e9)
+                
+                caps[col] = (lower_cap, upper_cap)
+        
+        # Cap extremely large values
+        capped_count = 0
+        for col in numeric_cols:
+            if col in caps:
+                lower_cap, upper_cap = caps[col]
+                # Count values outside cap range
+                count_before = df_clean[col].isna().sum()
+                
+                # Cap values
+                df_clean[col] = df_clean[col].clip(lower=lower_cap, upper=upper_cap)
+                
+                # Replace any new NaNs from the clipping operation
+                count_after = df_clean[col].isna().sum()
+                capped_count += (count_after - count_before)
+        
+        if capped_count > 0:
+            print(f"Capped {capped_count} extreme values across all features")
+        
+        # Finally replace remaining NaNs with 0
+        df_clean = df_clean.fillna(0)
+        
+        # Convert numeric data to manageable precision
+        for col in df_clean.select_dtypes(include=['float64']).columns:
+            df_clean[col] = df_clean[col].round(6)
+        
+        return df_clean
+
     def load_data(self, data_path, feature_selection=True, n_features=30, sample_fraction=1.0):
         """
         Load and preprocess the data from CSV file
@@ -113,16 +175,18 @@ class CyberDataLoader:
         for label, count in pd.Series(labels).value_counts().items():
             print(f"- {label}: {count} samples ({count/len(labels)*100:.1f}%)")
         
-        # Select features
+        # Preprocess data - handle missing values, infinities, and extreme values
         X = df.drop(self.label_column, axis=1)
+        X = self._preprocess_data(X)
+        
+        # Check for any remaining problematic values after preprocessing
+        problematic = np.any(np.isnan(X.values)) or np.any(np.isinf(X.values))
+        if problematic:
+            print("Warning: There are still NaN or infinity values after preprocessing")
         
         # Perform feature selection if requested
         if feature_selection:
             X = self._select_features(X, labels, n_features)
-        
-        # Convert numeric data to manageable precision
-        for col in X.select_dtypes(include=['float64']).columns:
-            X[col] = X[col].round(3)
         
         # Convert features to string for BERT processing
         texts = [' '.join([f"{col}={val}" for col, val in zip(X.columns, row)]) for row in X.values]
@@ -142,28 +206,51 @@ class CyberDataLoader:
         # Keep track of feature names
         feature_names = X.columns
         
-        # Handle missing values
-        X_clean = X.fillna(0)
-        
-        # Select top features
-        selector = SelectKBest(f_classif, k=min(n_features, len(X.columns)))
-        selector.fit(X_clean, labels)
-        
-        # Get mask of selected features
-        feature_mask = selector.get_support()
-        
-        # Get selected feature names
-        self.selected_features = feature_names[feature_mask].tolist()
-        
-        print(f"\nSelected top {len(self.selected_features)} features:")
-        # Print top 10 features with their scores
-        scores = selector.scores_
-        sorted_idx = np.argsort(scores[feature_mask])[::-1]
-        top_features = [self.selected_features[i] for i in sorted_idx[:10]]
-        print(", ".join(top_features))
-        
-        # Return only selected features
-        return X[self.selected_features]
+        try:
+            # Check for constant features before selection
+            variance = X.var()
+            constant_features = variance[variance <= 1e-10].index.tolist()
+            
+            if constant_features:
+                print(f"Detected {len(constant_features)} constant or near-constant features")
+                
+                # Add tiny random noise to constant features to prevent warnings
+                for col in constant_features:
+                    X[col] = X[col] + np.random.normal(0, 1e-6, size=len(X))
+            
+            # Temporarily suppress warnings during feature selection
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=UserWarning)
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                
+                # Select top features
+                selector = SelectKBest(f_classif, k=min(n_features, len(X.columns)))
+                selector.fit(X, labels)
+            
+            # Get mask of selected features
+            feature_mask = selector.get_support()
+            
+            # Get selected feature names
+            self.selected_features = feature_names[feature_mask].tolist()
+            
+            print(f"\nSelected top {len(self.selected_features)} features:")
+            # Print top 10 features with their scores
+            scores = selector.scores_
+            # Replace NaN scores with 0 and Inf with a large value
+            scores = np.nan_to_num(scores, nan=0.0, posinf=1e10, neginf=-1e10)
+            
+            # Get indices of top scored features
+            sorted_idx = np.argsort(scores[feature_mask])[::-1]
+            top_features = [self.selected_features[i] for i in sorted_idx[:10]]
+            print(", ".join(top_features))
+            
+            # Return only selected features
+            return X[self.selected_features]
+        except Exception as e:
+            print(f"Error during feature selection: {str(e)}")
+            print("Falling back to using all features")
+            self.selected_features = feature_names.tolist()
+            return X
 
     def get_num_labels(self):
         """Return the number of unique labels in the dataset"""

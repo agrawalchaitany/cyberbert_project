@@ -90,7 +90,14 @@ class CyberBERTTrainer:
                     # Move tensors to device
                     input_ids = batch['input_ids'].to(self.device)
                     attention_mask = batch['attention_mask'].to(self.device)
-                    labels = batch['label'].to(self.device)
+                    
+                    # Handle both 'labels' and 'label' keys for backward compatibility
+                    if 'labels' in batch:
+                        labels = batch['labels'].to(self.device)
+                    elif 'label' in batch:
+                        labels = batch['label'].to(self.device)
+                    else:
+                        raise ValueError("Neither 'labels' nor 'label' found in batch data")
                     
                     # Calculate loss with mixed precision if enabled
                     if mixed_precision and self.device.type == 'cuda':
@@ -253,7 +260,14 @@ class CyberBERTTrainer:
                     
                 input_ids = batch['input_ids'].to(self.device)
                 attention_mask = batch['attention_mask'].to(self.device)
-                labels = batch['label'].to(self.device)
+                
+                # Handle both 'labels' and 'label' keys for backward compatibility
+                if 'labels' in batch:
+                    labels = batch['labels'].to(self.device)
+                elif 'label' in batch:
+                    labels = batch['label'].to(self.device)
+                else:
+                    raise ValueError("Neither 'labels' nor 'label' found in batch data")
                 
                 outputs = self.model(
                     input_ids=input_ids,
@@ -299,7 +313,14 @@ class CyberBERTTrainer:
             for batch in tqdm(dataloader, desc="Evaluating"):
                 input_ids = batch['input_ids'].to(self.device)
                 attention_mask = batch['attention_mask'].to(self.device)
-                labels = batch['label'].to(self.device)
+                
+                # Handle both 'labels' and 'label' keys for backward compatibility
+                if 'labels' in batch:
+                    labels = batch['labels'].to(self.device)
+                elif 'label' in batch:
+                    labels = batch['label'].to(self.device)
+                else:
+                    raise ValueError("Neither 'labels' nor 'label' found in batch data")
                 
                 outputs = self.model(
                     input_ids=input_ids,
