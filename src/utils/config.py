@@ -201,3 +201,23 @@ class Config:
             return value
         except (KeyError, TypeError):
             return default
+    
+    def set(self, key: str, value: Any) -> None:
+        """
+        Set a value in the configuration
+        
+        Args:
+            key: Dot-separated path to the value (e.g., 'model.learning_rate')
+            value: Value to set
+        """
+        keys = key.split('.')
+        
+        # Navigate to the nested dictionary
+        config_section = self.config
+        for k in keys[:-1]:  # All keys except the last one
+            if k not in config_section:
+                config_section[k] = {}
+            config_section = config_section[k]
+            
+        # Set the value at the final key
+        config_section[keys[-1]] = value

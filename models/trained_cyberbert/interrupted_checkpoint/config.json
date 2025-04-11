@@ -47,6 +47,7 @@
   "num_hidden_layers": 12,
   "pad_token_id": 0,
   "position_embedding_type": "absolute",
+  "problem_type": "single_label_classification",
   "qa_dropout": 0.1,
   "seq_classif_dropout": 0.2,
   "sinusoidal_pos_embds": false,
@@ -55,8 +56,8 @@
       "created_with": "CyberBERT Trainer",
       "hardware": "CPU: AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD",
       "num_labels": 6,
-      "training_data": "unknown",
-      "training_date": "2025-04-11 14:55:54"
+      "training_data": "clean_data.csv",
+      "training_date": "2025-04-11 17:15:13"
     }
   },
   "tie_weights_": true,

@@ -11,16 +11,14 @@ class CyberDataLoader:
         self.label_column = None
         self.num_labels = None
         self.selected_features = None
-        # Define the expected labels
+        # Define the expected labels in the correct order according to the model's label mapping
         self.expected_labels = [
             "BENIGN",
-            "DDoS",
-            "PortScan", 
-            "FTP-Patator",
-            "SSH-Patator",
-            "DoS slowloris",
+            "DoS GoldenEye",
             "DoS Slowhttptest",
-            "DoS GoldenEye"
+            "FTP-Patator",
+            "PortScan",
+            "SSH-Patator"
         ]
         
         # Label normalization mapping
