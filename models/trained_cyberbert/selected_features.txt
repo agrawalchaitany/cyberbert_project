@@ -1,30 +1,5 @@
-Flow Duration
-Total Fwd Packets
 Total Backward Packets
-Bwd Packet Length Max
-Bwd Packet Length Mean
-Bwd Packet Length Std
-Flow IAT Max
-Fwd IAT Total
-Fwd IAT Std
-Fwd IAT Max
-Fwd Header Length
 Bwd Header Length
-Max Packet Length
-Packet Length Mean
 Packet Length Std
-Packet Length Variance
-PSH Flag Count
-Down/Up Ratio
-Average Packet Size
-Avg Bwd Segment Size
-Fwd Header Length.1
-Subflow Fwd Packets
 Subflow Bwd Packets
-act_data_pkt_fwd
-min_seg_size_forward
 Active Mean
-Active Max
-Active Min
-Idle Std
-Idle Max

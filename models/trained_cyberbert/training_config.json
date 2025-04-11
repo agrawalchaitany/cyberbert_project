@@ -6,17 +6,17 @@
   "data": {
     "data_path": "data/processed/clean_data.csv",
     "feature_selection": true,
-    "feature_count": 20,
-    "sample_fraction": 1.0,
-    "max_length": 128,
+    "feature_count": 5,
+    "sample_fraction": 0.05,
+    "max_length": 64,
     "cache_tokenization": false
   },
   "model": {
     "model_path": "models/cyberbert_model",
     "output_dir": "models/trained_cyberbert",
     "learning_rate": 2e-05,
-    "epochs": 3,
-    "batch_size": 8,
+    "epochs": 1,
+    "batch_size": 4,
     "mixed_precision": false,
     "early_stopping": 3,
     "weight_decay": 0.01,

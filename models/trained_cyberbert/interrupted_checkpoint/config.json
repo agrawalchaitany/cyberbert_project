@@ -1,52 +1,42 @@
 {
   "activation": "gelu",
   "architectures": [
-    "BertForSequenceClassification"
+    "DistilBertForSequenceClassification"
   ],
   "attention_dropout": 0.1,
-  "attention_probs_dropout_prob": 0.1,
   "class_weights": [
-    0.5071710348129272,
-    1.0336703062057495,
-    2.03372859954834,
-    1.7923691272735596,
-    0.5853520035743713,
-    3.301966905593872
+    0.5018881559371948,
+    1.04805326461792,
+    2.023311138153076,
+    1.794514775276184,
+    0.584926426410675,
+    3.421560764312744
   ],
-  "classifier_dropout": 0.2,
   "dim": 768,
   "dropout": 0.1,
-  "hidden_act": "gelu",
   "hidden_dim": 3072,
-  "hidden_dropout_prob": 0.2,
-  "hidden_size": 768,
   "id2label": {
     "0": "BENIGN",
-    "1": "DDoS",
-    "2": "PortScan",
+    "1": "DoS GoldenEye",
+    "2": "DoS Slowhttptest",
     "3": "FTP-Patator",
-    "4": "SSH-Patator",
-    "5": "DoS slowloris"
+    "4": "PortScan",
+    "5": "SSH-Patator"
   },
   "initializer_range": 0.02,
-  "intermediate_size": 3072,
   "label2id": {
     "BENIGN": 0,
-    "DDoS": 1,
-    "DoS slowloris": 5,
+    "DoS GoldenEye": 1,
+    "DoS Slowhttptest": 2,
     "FTP-Patator": 3,
-    "PortScan": 2,
-    "SSH-Patator": 4
+    "PortScan": 4,
+    "SSH-Patator": 5
   },
-  "layer_norm_eps": 1e-12,
   "max_position_embeddings": 512,
-  "model_type": "bert",
+  "model_type": "distilbert",
   "n_heads": 12,
   "n_layers": 6,
-  "num_attention_heads": 12,
-  "num_hidden_layers": 12,
   "pad_token_id": 0,
-  "position_embedding_type": "absolute",
   "problem_type": "single_label_classification",
   "qa_dropout": 0.1,
   "seq_classif_dropout": 0.2,
@@ -57,13 +47,11 @@
       "hardware": "CPU: AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD",
       "num_labels": 6,
       "training_data": "clean_data.csv",
-      "training_date": "2025-04-11 17:15:13"
+      "training_date": "2025-04-11 19:01:38"
     }
   },
   "tie_weights_": true,
   "torch_dtype": "float32",
-  "transformers_version": "4.50.3",
-  "type_vocab_size": 2,
-  "use_cache": true,
+  "transformers_version": "4.51.2",
   "vocab_size": 30522
 }

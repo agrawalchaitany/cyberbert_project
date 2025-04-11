@@ -15,7 +15,9 @@ from torch.optim import AdamW
 import platform
 from typing import Tuple, Dict, Any
 from torch.utils.data import DataLoader, random_split
-from transformers import BertForSequenceClassification, BertTokenizer, get_linear_schedule_with_warmup, BertConfig, BertModel
+from transformers import (BertForSequenceClassification, BertTokenizer, BertModel, BertConfig,
+                         DistilBertForSequenceClassification, DistilBertTokenizer, DistilBertModel, DistilBertConfig,
+                         get_linear_schedule_with_warmup)
 import argparse
 from collections import Counter
 import time
@@ -215,7 +217,7 @@ def parse_args():
     return parser.parse_args()
 
 def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict[str, Any], 
-                                data_loader: CyberDataLoader, logger, data_path: str = None) -> BertForSequenceClassification:
+                                data_loader: CyberDataLoader, logger, data_path: str = None):
     """
     Create a model with a fresh classification head for cybersecurity data
     
@@ -228,13 +230,20 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict
         data_path: Path to dataset (optional)
     
     Returns:
-        Initialized BERT model for sequence classification
+        Initialized model for sequence classification
     """
     try:
         logger.info(f"Loading base model from {model_path}")
         
-        # Load only the base BERT model
-        base_model = BertModel.from_pretrained(model_path)
+        # Check model type by looking at config.json
+        try:
+            with open(os.path.join(model_path, 'config.json'), 'r') as f:
+                config_data = json.load(f)
+                model_type = config_data.get('model_type', '').lower()
+        except:
+            model_type = "bert"  # Default to BERT if config.json can't be read
+            
+        logger.info(f"Detected model type: {model_type}")
         
         # Get expected labels in the correct order
         expected_labels = data_loader.get_expected_labels()
@@ -247,51 +256,96 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: Dict
         for idx, label in id2label.items():
             logger.debug(f"  {idx}: '{label}'")
         
-        # Create new classification model with optimized config
-        try:
-            # First try loading config from model path
-            config = BertConfig.from_pretrained(model_path)
-            # Update config with our classification settings
-            config.num_labels = num_labels
-            config.hidden_dropout_prob = 0.2
-            config.classifier_dropout = 0.2  
-            config.id2label = id2label
-            config.label2id = label2id
-        except Exception as config_error:
-            logger.warning(f"Could not load config from {model_path}, creating new config: {str(config_error)}")
-            # Create config from scratch if loading fails
-            config = BertConfig(
-                hidden_size=768,
-                num_hidden_layers=12,
-                num_attention_heads=12,
-                intermediate_size=3072,
-                hidden_dropout_prob=0.2,
-                attention_probs_dropout_prob=0.1,
-                num_labels=num_labels,
-                classifier_dropout=0.2,
-                id2label=id2label,
-                label2id=label2id
-            )
-        
-        # Add training metadata to config
-        config.task_specific_params = {
-            "cybersecurity_classification": {
-                "num_labels": num_labels,
-                "created_with": "CyberBERT Trainer",
-                "training_data": os.path.basename(data_path) if data_path else "unknown",
-                "training_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "hardware": hw_info['description'],
+        # Create model based on detected type
+        if model_type == "distilbert":
+            # Load DistilBERT base model and configuration
+            base_model = DistilBertModel.from_pretrained(model_path)
+            try:
+                config = DistilBertConfig.from_pretrained(model_path)
+                config.num_labels = num_labels
+                config.seq_classif_dropout = 0.2
+                config.id2label = id2label
+                config.label2id = label2id
+            except Exception as config_error:
+                logger.warning(f"Could not load DistilBERT config from {model_path}, creating new config: {str(config_error)}")
+                config = DistilBertConfig(
+                    hidden_size=768,
+                    n_layers=6,
+                    n_heads=12,
+                    dim=768,
+                    hidden_dim=3072,
+                    dropout=0.1,
+                    attention_dropout=0.1,
+                    seq_classif_dropout=0.2,
+                    num_labels=num_labels,
+                    id2label=id2label,
+                    label2id=label2id
+                )
+            
+            # Add training metadata to config
+            config.task_specific_params = {
+                "cybersecurity_classification": {
+                    "num_labels": num_labels,
+                    "created_with": "CyberBERT Trainer",
+                    "training_data": os.path.basename(data_path) if data_path else "unknown",
+                    "training_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "hardware": hw_info['description'],
+                }
             }
-        }
-        
-        model = BertForSequenceClassification(config)
-        
-        # Copy base model weights
-        model.bert = base_model
-        
-        # Initialize the classification head weights properly
-        model.classifier.weight.data.normal_(mean=0.0, std=0.02)
-        model.classifier.bias.data.zero_()
+            
+            model = DistilBertForSequenceClassification(config)
+            
+            # Copy base model weights - make sure to use correct attribute names for DistilBERT
+            model.distilbert = base_model
+            
+            # Initialize the classification head weights properly
+            model.classifier.weight.data.normal_(mean=0.0, std=0.02)
+            model.classifier.bias.data.zero_()
+            
+        else:
+            # Default to BERT
+            base_model = BertModel.from_pretrained(model_path)
+            try:
+                config = BertConfig.from_pretrained(model_path)
+                config.num_labels = num_labels
+                config.hidden_dropout_prob = 0.2
+                config.classifier_dropout = 0.2
+                config.id2label = id2label
+                config.label2id = label2id
+            except Exception as config_error:
+                logger.warning(f"Could not load BERT config from {model_path}, creating new config: {str(config_error)}")
+                config = BertConfig(
+                    hidden_size=768,
+                    num_hidden_layers=12,
+                    num_attention_heads=12,
+                    intermediate_size=3072,
+                    hidden_dropout_prob=0.2,
+                    attention_probs_dropout_prob=0.1,
+                    num_labels=num_labels,
+                    classifier_dropout=0.2,
+                    id2label=id2label,
+                    label2id=label2id
+                )
+            
+            # Add training metadata to config
+            config.task_specific_params = {
+                "cybersecurity_classification": {
+                    "num_labels": num_labels,
+                    "created_with": "CyberBERT Trainer",
+                    "training_data": os.path.basename(data_path) if data_path else "unknown",
+                    "training_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "hardware": hw_info['description'],
+                }
+            }
+            
+            model = BertForSequenceClassification(config)
+            
+            # Copy base model weights
+            model.bert = base_model
+            
+            # Initialize the classification head weights properly
+            model.classifier.weight.data.normal_(mean=0.0, std=0.02)
+            model.classifier.bias.data.zero_()
         
         # Apply hardware optimizations
         optimize_memory(hw_info, model)
@@ -314,6 +368,9 @@ def main():
         # Initialize configuration
         config = Config(args.config if args.config else None)
         config.update_from_args(args)
+        
+        # Get hardware configuration first (moved up to fix the reference issue)
+        hw_info = get_hardware_info()
         
         # Override with environment variables if available
         if args.data is None and "DATA_PATH" in os.environ:
@@ -349,7 +406,13 @@ def main():
                 config.set('data.feature_count', int(os.environ.get("FEATURE_COUNT", 40)))
             else:
                 config.set('data.feature_count', int(os.environ.get("CPU_FEATURE_COUNT", 20)))
-        
+                
+        # Update sample fraction from environment variable if available    
+        if "SAMPLE_FRACTION" in os.environ and hw_info['device'].type == 'cuda':
+            config.set('data.sample_fraction', float(os.environ.get("SAMPLE_FRACTION", 0.8)))
+        elif "CPU_SAMPLE_FRACTION" in os.environ and hw_info['device'].type == 'cpu':
+            config.set('data.sample_fraction', float(os.environ.get("CPU_SAMPLE_FRACTION", 0.1)))
+            
         # Initialize logger
         log_level = config.get('system.log_level', 'INFO')
         log_to_file = not args.no_log_file if hasattr(args, 'no_log_file') else config.get('system.log_to_file', True)
@@ -363,7 +426,6 @@ def main():
         logger.info("CyberBERT Training - Starting")
         
         # Get hardware configuration
-        hw_info = get_hardware_info()
         print_hardware_summary(hw_info)
         logger.info(f"Hardware: {hw_info['description']}")
         
@@ -453,10 +515,24 @@ def main():
             logger.debug(traceback.format_exc())
             raise
         
-        # Create tokenizer
+        # Create tokenizer - use correct tokenizer class based on model type
         logger.info(f"Loading tokenizer from {MODEL_PATH}")
         try:
-            tokenizer = BertTokenizer.from_pretrained(MODEL_PATH)
+            # Check model type by looking at config.json
+            try:
+                with open(os.path.join(MODEL_PATH, 'config.json'), 'r') as f:
+                    config_data = json.load(f)
+                    model_type = config_data.get('model_type', '').lower()
+            except:
+                model_type = "bert"  # Default to BERT if config.json can't be read
+            
+            # Use appropriate tokenizer class
+            if model_type == "distilbert":
+                tokenizer = DistilBertTokenizer.from_pretrained(MODEL_PATH)
+                logger.info("Using DistilBertTokenizer")
+            else:
+                tokenizer = BertTokenizer.from_pretrained(MODEL_PATH)
+                logger.info("Using BertTokenizer")
         except Exception as e:
             logger.error(f"Failed to load tokenizer: {str(e)}")
             logger.debug(traceback.format_exc())

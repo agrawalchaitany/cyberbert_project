@@ -83,8 +83,8 @@ The project now uses consolidated runner scripts that handle environment setup, 
 ### Using the Consolidated Runner Scripts
 
 #### Windows:
-```bash
-consolidated_runner.bat
+```batch
+.\consolidated_runner.bat
 ```
 
 #### Linux/Mac:
@@ -104,29 +104,40 @@ The consolidated runner provides four operation modes:
 
 ### Configuration via .env File
 
-The project uses a .env file for configuration:
+The project uses a .env file for configuration. If the file doesn't exist, the runner scripts will automatically create it with default values:
 
 ```
 # Model to download
-MODEL_NAME=distilbert-base-uncased
+MODEL_NAME=bert-base-uncased
 
 # Dataset URL (leave empty if no dataset to download)
 DATASET_URL=
 
 # Training parameters
-EPOCHS=10
+EPOCHS=5
 BATCH_SIZE=32
-MAX_LENGTH=256
-FEATURE_COUNT=40
+FEATURE_COUNT=20
+MAX_LENGTH=128
 
 # CPU-specific parameters (used when no GPU is available)
 CPU_EPOCHS=3
-CPU_BATCH_SIZE=8
+CPU_BATCH_SIZE=16
 CPU_MAX_LENGTH=128
 CPU_FEATURE_COUNT=20
 ```
 
 Edit this file to customize the model, dataset URL, and training parameters before running the consolidated scripts.
+
+### Troubleshooting the Consolidated Runner
+
+If you encounter issues with the consolidated runner scripts:
+
+1. **Script not found**: Make sure you're running the command from the project root directory.
+2. **Permission denied**: For Linux/Mac, make the script executable with `chmod +x consolidated_runner.sh`.
+3. **Environment setup fails**: Ensure Python 3.8+ is installed and available in your PATH.
+4. **Model download fails**: Check your internet connection and verify the MODEL_NAME in your .env file.
+5. **No dataset found**: Either provide a DATASET_URL in your .env file or manually place your dataset in `data/processed/clean_data.csv`. If no dataset is found, a small test dataset will be created automatically.
+6. **Training errors**: Check if train.py and all required source files exist in the correct locations.
 
 ### Manual Usage (Alternative)
 
