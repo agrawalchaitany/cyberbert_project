@@ -52,7 +52,7 @@ def parse_args():
                         help='Evaluation steps (0 to disable)')
     return parser.parse_args()
 
-def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: dict) -> BertForSequenceClassification:
+def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: dict, data_loader: CyberDataLoader) -> BertForSequenceClassification:
     """Create a model with a fresh classification head for cybersecurity data"""
     try:
         print(f"Loading base model from {model_path}")
@@ -60,14 +60,25 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: dict
         # Load only the base BERT model
         base_model = BertModel.from_pretrained(model_path)
         
+        # Get expected labels in the correct order
+        expected_labels = data_loader.get_expected_labels()
+        
+        # Create label mappings for config using the expected label ordering
+        id2label = {i: label for i, label in enumerate(expected_labels)}
+        label2id = {label: i for i, label in enumerate(expected_labels)}
+        
+        print(f"Label mapping configured for {num_labels} classes:")
+        for idx, label in id2label.items():
+            print(f"  {idx}: '{label}'")
+        
         # Create new classification model with optimized config
         config = BertConfig.from_pretrained(
             model_path,
             num_labels=num_labels,
             hidden_dropout_prob=0.2,  # Increase dropout for better generalization
             classifier_dropout=0.2,
-            id2label={i: label for i, label in enumerate(sorted(set(labels)))},
-            label2id={label: i for i, label in enumerate(sorted(set(labels)))}
+            id2label=id2label,
+            label2id=label2id
         )
         
         # Add training metadata to config
@@ -98,7 +109,7 @@ def create_model_with_fresh_head(model_path: str, num_labels: int, hw_info: dict
         raise
 
 def main():
-    global args, labels
+    global args
     args = parse_args()
     
     # Get hardware configuration first
@@ -172,8 +183,11 @@ def main():
     # Get class weights directly from the dataset
     weight_tensor = full_dataset.get_class_weights().to(hw_info['device'])
     
-    # Create model with fresh classification head
-    model = create_model_with_fresh_head(MODEL_PATH, num_labels, hw_info)
+    # Get label mappings for the model
+    label_mapping = full_dataset.get_label_map()
+    
+    # Create model with fresh classification head and proper label mapping
+    model = create_model_with_fresh_head(MODEL_PATH, num_labels, hw_info, data_loader)
     
     # Store class weights in the model config as a list (JSON serializable)
     model.config.class_weights = weight_tensor.cpu().tolist()
@@ -264,6 +278,16 @@ def main():
             for feature in data_loader.selected_features:
                 f.write(f"{feature}\n")
         print(f"Saved {len(data_loader.selected_features)} selected features to {features_file}")
+    
+    # Save label mapping
+    label_map_file = os.path.join(SAVE_DIR, 'label_mapping.json')
+    import json
+    with open(label_map_file, 'w') as f:
+        json.dump({
+            'id2label': {str(idx): label for idx, label in model.config.id2label.items()},
+            'label2id': model.config.label2id
+        }, f, indent=2)
+    print(f"Saved label mapping to {label_map_file}")
 
 if __name__ == "__main__":
     main()

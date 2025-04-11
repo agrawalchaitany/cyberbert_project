@@ -12,7 +12,7 @@ A deep learning model for network traffic classification that leverages BERT arc
 - Support for both CPU and GPU training/inference
 - Automated data preprocessing and cleaning
 - Training progress monitoring and model checkpointing
-- Multi-class traffic classification (15 classes)
+- Multi-class traffic classification (8 classes)
 - Automatic hardware detection and optimization
 - Feature selection for improved performance
 - Mixed precision training for faster GPU performance
@@ -108,22 +108,39 @@ python -m CICFlowMeter.CICFlowMeter.main -f input.pcap -o output.csv -m models/c
 
 ### Training the Model
 
-Basic training with default parameters:
+Basic training with default parameters (auto-detects hardware):
 ```bash
 python train.py
 ```
 
-Custom training configuration:
+#### For GPU Users:
 ```bash
-python train.py --data "path/to/flow_data.csv" \
+# Full GPU training with mixed precision
+python train.py --data "data/processed/clean_data.csv" \
                 --epochs 10 \
                 --batch-size 32 \
-                --learning-rate 3e-5 \
-                --max-length 256 \
                 --mixed-precision \
                 --cache-tokenization \
                 --feature-count 40 \
-                --early-stopping 5
+                --max-length 256
+
+# GPU training for larger datasets
+python train.py --mixed-precision --cache-tokenization --batch-size 16
+```
+
+#### For CPU Users:
+```bash
+# Optimized CPU training
+python train.py --data "data/processed/clean_data.csv" \
+                --epochs 5 \
+                --batch-size 8 \
+                --max-length 128 \
+                --sample-frac 0.8 \
+                --feature-count 20 \
+                --no-cache-tokenization
+
+# CPU training for limited memory systems
+python train.py --batch-size 4 --max-length 96 --sample-frac 0.5 --feature-count 15
 ```
 
 ### Command Line Arguments
@@ -145,23 +162,16 @@ python train.py --data "path/to/flow_data.csv" \
 
 ## Supported Traffic Classes
 
-The model can detect and classify 15 different types of network traffic:
+The model can detect and classify 8 different types of network traffic:
 
 1. BENIGN (Normal Traffic)
 2. DDoS (Distributed Denial of Service)
 3. PortScan
-4. Bot
-5. Infiltration
-6. Web Attack - Brute Force
-7. Web Attack - XSS
-8. Web Attack - SQL Injection
-9. FTP-Patator
-10. SSH-Patator
-11. DoS slowloris
-12. DoS Slowhttptest
-13. DoS Hulk
-14. DoS GoldenEye
-15. Heartbleed
+4. FTP-Patator
+5. SSH-Patator
+6. DoS slowloris
+7. DoS Slowhttptest
+8. DoS GoldenEye
 
 ## Performance Optimizations
 

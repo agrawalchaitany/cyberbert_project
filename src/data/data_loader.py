@@ -8,6 +8,66 @@ class CyberDataLoader:
         self.num_labels = None
         self.important_features = None
         self.selected_features = None
+        # Define the expected labels for your model
+        self.expected_labels = [
+            "BENIGN",
+            "DDoS",
+            "PortScan", 
+            "FTP-Patator",
+            "SSH-Patator",
+            "DoS slowloris",
+            "DoS Slowhttptest",
+            "DoS GoldenEye"
+        ]
+
+    def normalize_labels(self, labels):
+        """
+        Normalize label names to ensure consistency with the expected labels
+        """
+        normalized = []
+        mapping = {
+            # Common variations and typos
+            "benign": "BENIGN",
+            "normal": "BENIGN",
+            "ddos": "DDoS",
+            "portscan": "PortScan",
+            "port-scan": "PortScan",
+            "port_scan": "PortScan",
+            "ftp-patator": "FTP-Patator",
+            "ftp_patator": "FTP-Patator",
+            "ftppatator": "FTP-Patator",
+            "ssh-patator": "SSH-Patator",
+            "ssh_patator": "SSH-Patator",
+            "sshpatator": "SSH-Patator",
+            "dos slowloris": "DoS slowloris",
+            "dos-slowloris": "DoS slowloris",
+            "dos_slowloris": "DoS slowloris",
+            "slowloris": "DoS slowloris",
+            "dos slowhttptest": "DoS Slowhttptest",
+            "dos-slowhttptest": "DoS Slowhttptest",
+            "dos_slowhttptest": "DoS Slowhttptest",
+            "slowhttptest": "DoS Slowhttptest",
+            "dos goldeneye": "DoS GoldenEye",
+            "dos-goldeneye": "DoS GoldenEye",
+            "dos_goldeneye": "DoS GoldenEye",
+            "goldeneye": "DoS GoldenEye"
+        }
+        
+        for label in labels:
+            # Convert to string in case it's not already
+            label_str = str(label).strip()
+            # Check if label needs normalization
+            if label_str.lower() in mapping:
+                normalized.append(mapping[label_str.lower()])
+            else:
+                # Keep the original if it's already in expected format
+                if label_str in self.expected_labels:
+                    normalized.append(label_str)
+                else:
+                    print(f"Warning: Unknown label '{label_str}', treating as 'BENIGN'")
+                    normalized.append("BENIGN")
+        
+        return np.array(normalized)
 
     def load_data(self, data_path, feature_selection=True, n_features=30, sample_fraction=1.0):
         """
@@ -42,6 +102,9 @@ class CyberDataLoader:
 
         # Extract features and labels
         labels = df[self.label_column].values
+        
+        # Normalize labels to ensure consistency
+        labels = self.normalize_labels(labels)
         
         # Print label distribution
         print("\nLabel distribution:")
@@ -95,6 +158,7 @@ class CyberDataLoader:
         # Store number of unique labels
         self.num_labels = len(np.unique(labels))
         print(f"\nNumber of unique labels: {self.num_labels}")
+        print(f"Expected labels: {self.expected_labels[:self.num_labels]}")
         
         return texts, labels
 
@@ -107,3 +171,7 @@ class CyberDataLoader:
     def get_selected_features(self):
         """Return the list of selected features if feature selection was performed."""
         return self.selected_features
+        
+    def get_expected_labels(self):
+        """Return the list of expected labels in the correct order."""
+        return self.expected_labels[:self.num_labels]
