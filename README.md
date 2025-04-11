@@ -13,6 +13,12 @@ A deep learning model for network traffic classification that leverages BERT arc
 - Automated data preprocessing and cleaning
 - Training progress monitoring and model checkpointing
 - Multi-class traffic classification (15 classes)
+- Automatic hardware detection and optimization
+- Feature selection for improved performance
+- Mixed precision training for faster GPU performance
+- Early stopping to prevent overfitting
+- Class weight balancing for imbalanced datasets
+- Visualizations of training metrics and confusion matrices
 
 ## Project Structure
 
@@ -54,6 +60,8 @@ pandas>=2.2.3
 numpy>=2.2.3
 scikit-learn>=1.6.1
 tqdm>=4.65.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
 ```
 
 ## Installation
@@ -111,7 +119,11 @@ python train.py --data "path/to/flow_data.csv" \
                 --epochs 10 \
                 --batch-size 32 \
                 --learning-rate 3e-5 \
-                --max-length 256
+                --max-length 256 \
+                --mixed-precision \
+                --cache-tokenization \
+                --feature-count 40 \
+                --early-stopping 5
 ```
 
 ### Command Line Arguments
@@ -120,9 +132,16 @@ python train.py --data "path/to/flow_data.csv" \
 - `--model`: Path to pre-trained BERT model (default: models/cyberbert_model)
 - `--output`: Directory to save trained model (default: models/trained_cyberbert)
 - `--epochs`: Number of training epochs (default: 5)
-- `--batch-size`: Training batch size (default: 16)
-- `--max-length`: Maximum sequence length (default: 512)
+- `--batch-size`: Training batch size (default: 16, auto-adjusted based on hardware)
+- `--max-length`: Maximum sequence length (default: 256)
 - `--learning-rate`: Learning rate (default: 2e-5)
+- `--sample-frac`: Fraction of data to use for faster development (default: 1.0)
+- `--feature-count`: Number of top features to select (default: 30)
+- `--no-feature-selection`: Disable feature selection (by default, feature selection is enabled)
+- `--mixed-precision`: Enable mixed precision training for compatible GPUs
+- `--cache-tokenization`: Cache tokenized data for faster training (uses more memory)
+- `--early-stopping`: Early stopping patience in epochs (default: 3)
+- `--eval-steps`: Evaluate on validation set every N steps (default: 100, 0 to disable)
 
 ## Supported Traffic Classes
 
@@ -143,6 +162,26 @@ The model can detect and classify 15 different types of network traffic:
 13. DoS Hulk
 14. DoS GoldenEye
 15. Heartbleed
+
+## Performance Optimizations
+
+CyberBERT includes several optimizations to improve training and inference speed:
+
+1. **Automatic Hardware Detection**: Detects and configures optimal settings for CPU, NVIDIA GPU, or Apple Silicon.
+
+2. **Feature Selection**: Uses statistical methods to select the most relevant features, reducing dimensionality and improving performance.
+
+3. **Mixed Precision Training**: Uses FP16 precision on compatible GPUs to speed up training by up to 3x.
+
+4. **Tokenization Caching**: Pre-tokenizes data to eliminate redundant processing during training.
+
+5. **Gradient Checkpointing**: Reduces memory usage on devices with limited RAM.
+
+6. **Early Stopping**: Automatically stops training when performance plateaus.
+
+7. **Optimized DataLoaders**: Configures appropriate number of worker threads based on available CPU cores.
+
+8. **Adaptive Batch Sizing**: Adjusts batch size based on available memory.
 
 ## Real-time Classification Performance
 
@@ -202,22 +241,23 @@ Recommended:
 ## Training Details
 
 1. **Data Split**:
-   - Training: 70%
-   - Validation: 15%
-   - Testing: 15%
+   - Training: 80%
+   - Validation: 20%
 
 2. **Hyperparameters**:
-   - Batch size: 16-32 (GPU), 8-16 (CPU)
+   - Batch size: Automatically determined based on hardware
    - Learning rate: 2e-5 to 5e-5
-   - Maximum sequence length: 512
+   - Maximum sequence length: 256
    - Weight decay: 0.01
-   - Warmup steps: 0.1 * total_steps
+   - Warmup steps: 10% of total_steps
+   - Early stopping: 3 epochs patience
 
 3. **Monitoring**:
-   - Training loss
-   - Validation accuracy
+   - Training loss and accuracy
+   - Validation loss and accuracy
    - F1-score per class
    - Confusion matrix
+   - Training curves visualization
 
 ## Benchmarks
 
@@ -239,25 +279,26 @@ python -m CICFlowMeter.CICFlowMeter.main -i eth0 -m models/cyberbert_model
 python predict.py --input flows.csv --model models/trained_cyberbert --output predictions.csv
 ```
 
-## Known Issues
-
-1. Memory usage spikes with large batch sizes
-2. GPU utilization can be inconsistent
-3. Some features may have NaN values
-4. High CPU usage during peak traffic
-5. Classification delays on slower hardware
-
 ## Troubleshooting
 
-1. Out of memory errors:
-   - Reduce batch size
-   - Use gradient checkpointing
-   - Enable CPU offloading
+### Memory Issues
+- Decrease batch size using `--batch-size`
+- Disable tokenization caching with `--no-cache-tokenization`
+- Use a smaller subset of data with `--sample-frac 0.5`
+- Reduce maximum sequence length with `--max-length 128`
+- Enable gradient checkpointing (automatic on systems with < 12GB memory)
 
-2. Slow training:
-   - Check GPU utilization
-   - Optimize num_workers in DataLoader
-   - Use mixed precision training
+### Slow Training
+- Enable mixed precision with `--mixed-precision` (requires CUDA GPU)
+- Use feature selection with `--feature-count 30`
+- Consider using a GPU for training (10-20x faster than CPU)
+- Optimize worker threads through hardware auto-detection
+
+### Model Accuracy
+- Use class-weight balancing (automatic for imbalanced datasets)
+- Increase the number of training epochs with `--epochs 10`
+- Tune learning rate with `--learning-rate 3e-5`
+- Use more training data or augment existing data
 
 ## Contributing
 
