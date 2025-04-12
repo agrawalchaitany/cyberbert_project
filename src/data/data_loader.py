@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import warnings
+import os
 from sklearn.feature_selection import SelectKBest, f_classif
 
 class CyberDataLoader:
@@ -48,6 +49,12 @@ class CyberDataLoader:
             "dos_goldeneye": "DoS GoldenEye",
             "goldeneye": "DoS GoldenEye"
         }
+        
+        # List of non-numeric features that should be excluded from feature selection
+        self.non_numeric_features = [
+            'Flow ID', 'Src IP', 'Dst IP', 'Protocol', 'Timestamp', 'Label',
+            'src_ip', 'dst_ip', 'protocol', 'timestamp'  # lowercase variants
+        ]
 
     def normalize_labels(self, labels):
         """Normalize label names to ensure consistency with the expected labels"""
@@ -130,14 +137,14 @@ class CyberDataLoader:
         
         return df_clean
 
-    def load_data(self, data_path, feature_selection=True, n_features=30, sample_fraction=1.0):
+    def load_data(self, data_path, feature_selection=False, n_features=78, sample_fraction=1.0):
         """
         Load and preprocess the data from CSV file
         
         Args:
             data_path: Path to the CSV data file
-            feature_selection: Whether to perform feature selection
-            n_features: Number of top features to select if feature_selection is True
+            feature_selection: Whether to perform feature selection (default is now False to use all features)
+            n_features: Number of top features to select if feature_selection is True (default is now 78)
             sample_fraction: Fraction of data to sample for faster development
         
         Returns:
@@ -175,6 +182,13 @@ class CyberDataLoader:
         
         # Preprocess data - handle missing values, infinities, and extreme values
         X = df.drop(self.label_column, axis=1)
+        
+        # Remove non-numeric features 
+        non_numeric_columns = [col for col in X.columns if col in self.non_numeric_features]
+        if non_numeric_columns:
+            print(f"\nExcluding {len(non_numeric_columns)} non-numeric features: {', '.join(non_numeric_columns)}")
+            X = X.drop(columns=non_numeric_columns, errors='ignore')
+        
         X = self._preprocess_data(X)
         
         # Check for any remaining problematic values after preprocessing
@@ -182,9 +196,44 @@ class CyberDataLoader:
         if problematic:
             print("Warning: There are still NaN or infinity values after preprocessing")
         
+        # Check for specified features file and use those if available
+        model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                'models', 'trained_cyberbert')
+        features_file = os.path.join(model_dir, 'selected_features.txt')
+        
+        if os.path.exists(features_file):
+            try:
+                with open(features_file, 'r') as f:
+                    saved_features = [line.strip() for line in f if line.strip()]
+                
+                # Filter out non-numeric features from the saved features list
+                saved_features = [feat for feat in saved_features if feat not in self.non_numeric_features]
+                
+                # Filter to only include features that exist in the dataset
+                valid_features = [feat for feat in saved_features if feat in X.columns]
+                
+                if valid_features:
+                    print(f"\nUsing {len(valid_features)} numeric features from {features_file}")
+                    self.selected_features = valid_features
+                    
+                    # Sort columns to match the order in the features file
+                    feature_order = {feat: i for i, feat in enumerate(saved_features)}
+                    present_features = [f for f in saved_features if f in X.columns]
+                    X = X[present_features]
+                    
+                    # Feature selection is no longer needed if we're using all features
+                    feature_selection = False
+            except Exception as e:
+                print(f"Error reading features file: {str(e)}")
+                # Continue with regular feature selection if there was an error
+        
         # Perform feature selection if requested
         if feature_selection:
             X = self._select_features(X, labels, n_features)
+        else:
+            # If not performing feature selection, use all available features
+            self.selected_features = X.columns.tolist()
+            print(f"\nUsing all {len(self.selected_features)} available numeric features")
         
         # Convert features to string for BERT processing
         texts = [' '.join([f"{col}={val}" for col, val in zip(X.columns, row)]) for row in X.values]
@@ -239,7 +288,7 @@ class CyberDataLoader:
             
             # Get indices of top scored features
             sorted_idx = np.argsort(scores[feature_mask])[::-1]
-            top_features = [self.selected_features[i] for i in sorted_idx[:10]]
+            top_features = [self.selected_features[i] for i in sorted_idx[:min(10, len(sorted_idx))]]
             print(", ".join(top_features))
             
             # Return only selected features

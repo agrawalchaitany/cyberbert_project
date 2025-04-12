@@ -4,6 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 import json
+import gc
 
 class CyberSecurityDataset(Dataset):
     """
@@ -70,25 +71,49 @@ class CyberSecurityDataset(Dataset):
         else:
             # No caching - tokenize directly
             self.tokenized_texts = self._tokenize_all_texts()
+
+        # After tokenization, we can potentially free memory by releasing the original texts
+        # if we have successfully tokenized everything
+        if len(self.tokenized_texts) == len(self.texts):
+            # Keep a small reference to length for validation
+            self._texts_len = len(self.texts)
+            self.texts = None
+            gc.collect() # Force garbage collection
             
     def _tokenize_all_texts(self):
-        """Tokenize all texts in the dataset"""
+        """Tokenize all texts in the dataset with memory optimization"""
         print(f"Tokenizing {len(self.texts)} texts (max_length={self.max_length})...")
         
+        # Process in batches to reduce memory usage
         tokenized = []
-        for i, text in enumerate(self.texts):
-            if i % 5000 == 0 and i > 0:
-                print(f"  Tokenized {i}/{len(self.texts)} texts")
-                
-            # Tokenize with truncation and padding
-            encoded = self.tokenizer(
-                text,
+        batch_size = 1000  # Process 1000 texts at a time
+        
+        for start_idx in range(0, len(self.texts), batch_size):
+            end_idx = min(start_idx + batch_size, len(self.texts))
+            batch_texts = self.texts[start_idx:end_idx]
+            
+            print(f"  Tokenized {start_idx}/{len(self.texts)} texts")
+            
+            # Batch tokenization
+            encoded_batch = self.tokenizer(
+                batch_texts,
                 max_length=self.max_length,
                 padding="max_length",
                 truncation=True,
                 return_tensors=None  # Return as python lists
             )
-            tokenized.append(encoded)
+            
+            # Convert from batch format to individual samples
+            for i in range(len(batch_texts)):
+                sample = {
+                    'input_ids': encoded_batch['input_ids'][i],
+                    'attention_mask': encoded_batch['attention_mask'][i]
+                }
+                tokenized.append(sample)
+                
+            # Free memory after each batch
+            del batch_texts, encoded_batch
+            gc.collect()
             
         print(f"Tokenization complete for {len(tokenized)} texts")
         return tokenized
@@ -120,22 +145,22 @@ class CyberSecurityDataset(Dataset):
             
     def __len__(self):
         """Return dataset size"""
-        return len(self.texts)
+        return len(self.tokenized_texts)
         
     def __getitem__(self, idx):
-        """Get tokenized text and label for an index"""
+        """Get tokenized text and label for an index, optimized for memory"""
         # Get tokenized text
         encoded = self.tokenized_texts[idx]
         
         # Convert to tensors
         item = {
-            'input_ids': torch.tensor(encoded['input_ids']),
-            'attention_mask': torch.tensor(encoded['attention_mask']),
+            'input_ids': torch.tensor(encoded['input_ids'], dtype=torch.long),
+            'attention_mask': torch.tensor(encoded['attention_mask'], dtype=torch.long),
         }
         
         # Convert label string to index
         label_idx = self.label_map[self.labels[idx]]
-        item['labels'] = torch.tensor(label_idx)
+        item['labels'] = torch.tensor(label_idx, dtype=torch.long)
         
         return item
         

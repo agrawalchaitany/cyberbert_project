@@ -85,13 +85,20 @@ def get_hardware_info() -> Dict[str, Any]:
     else:
         info['device'] = torch.device('cpu')
         info['memory_gb'] = info['total_ram']
-        info['batch_size'] = min(8, max(1, int(info['total_ram'] / 4)))
+        # Reduce batch size for CPU with limited memory
+        info['batch_size'] = min(4, max(1, int(info['total_ram'] / 4)))
+        if info['total_ram'] < 8:  # Less than 8GB RAM
+            info['batch_size'] = 1  # Force batch size to 1 for very limited memory
         info['description'] = f"CPU: {platform.processor()}"
     
     # Set optimized parameters based on device
     info['half_precision'] = info['supports_cuda']  # Use half precision on CUDA
     info['gradient_checkpointing'] = info['memory_gb'] < 12  # Use gradient checkpointing on lower memory
-    info['worker_threads'] = min(4, max(0, info['cpu_threads'] - 2))  # Leave some cores for system
+    # Reduce workers for low memory systems
+    if info['memory_gb'] < 8:
+        info['worker_threads'] = 0  # Use 0 workers for very limited memory (no multiprocessing)
+    else:
+        info['worker_threads'] = min(2, max(0, info['cpu_threads'] - 2))  # Leave some cores for system
     
     return info
 
@@ -171,10 +178,13 @@ def get_optimized_settings(hw_info: Dict[str, Any]) -> Dict[str, Any]:
         # Apple Silicon specifics
         settings['mixed_precision'] = False  # MPS doesn't support mixed precision yet
     else:
-        # CPU optimizations
-        settings['max_length'] = 96  # Even shorter sequences on CPU
+        # CPU optimizations - adjust for limited memory
+        settings['max_length'] = 64  # Even shorter sequences on CPU
         settings['learning_rate'] = 1e-5  # Lower learning rate for stability
-        settings['batch_size'] = max(1, settings['batch_size'])  # Ensure batch size is at least 1
+        settings['batch_size'] = max(1, hw_info['batch_size'])  # Ensure batch size is at least 1
+        # For very limited memory, increase grad accumulation to simulate larger batches
+        if hw_info['memory_gb'] < 8:
+            settings['gradient_accumulation_steps'] = 4
         
     return settings
 

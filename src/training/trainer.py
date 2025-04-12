@@ -10,6 +10,8 @@ import logging
 import json
 from typing import Dict, Any, Optional, List
 from torch.cuda.amp import autocast, GradScaler
+import gc
+import psutil
 
 class CyberBERTTrainer:
     """
@@ -72,6 +74,9 @@ class CyberBERTTrainer:
         
         self.logger.info(f"Training on device: {self.device}")
         self.logger.info(f"Training with mixed precision: {mixed_precision and self.device.type == 'cuda'}")
+        
+        # Force garbage collection before training
+        gc.collect()
         
         try:
             for epoch in range(epochs):
@@ -140,6 +145,9 @@ class CyberBERTTrainer:
                     all_train_preds.extend(predictions.cpu().numpy())
                     all_train_labels.extend(labels.cpu().numpy())
                     
+                    # Free memory after each training step
+                    del input_ids, attention_mask, labels, outputs, logits, predictions
+                    
                     # Update progress bar
                     train_acc = total_train_correct / total_train_samples
                     train_progress.set_postfix({
@@ -152,13 +160,28 @@ class CyberBERTTrainer:
                         
                     # Periodic validation during epoch
                     if eval_steps > 0 and global_step % eval_steps == 0:
-                        # Quick validation
-                        val_loss, val_acc, val_f1 = self._quick_evaluate(val_dataloader)
+                        # Check available memory before validation
+                        available_mem = psutil.virtual_memory().available / (1024 * 1024 * 1024)  # GB
+                        self.logger.info(f"Available memory before validation: {available_mem:.2f} GB")
+                        
+                        # Force garbage collection
+                        gc.collect()
+                        
+                        # Quick validation with minimal batch count for memory-constrained systems
+                        max_val_batches = None
+                        if available_mem < 2.0:  # Less than 2GB free
+                            max_val_batches = 10  # Limit validation to 10 batches
+                            self.logger.warning(f"Limited memory available ({available_mem:.2f}GB), limiting validation to {max_val_batches} batches")
+                            
+                        val_loss, val_acc, val_f1 = self._quick_evaluate(val_dataloader, max_batches=max_val_batches)
                         self.logger.info(f"Step {global_step}: "
                                 f"Train loss: {loss.item():.4f}, acc: {train_acc:.4f} | "
                                 f"Val loss: {val_loss:.4f}, acc: {val_acc:.4f}, F1: {val_f1:.4f}")
                         # Return to training mode
                         self.model.train()
+                        
+                        # Force garbage collection after validation
+                        gc.collect()
                 
                 # Calculate epoch metrics
                 avg_train_loss = total_train_loss / len(train_dataloader)
@@ -169,6 +192,13 @@ class CyberBERTTrainer:
                 
                 # Calculate epoch training time
                 epoch_time = time.time() - epoch_start_time
+                
+                # Check if we have enough memory for full validation
+                available_mem = psutil.virtual_memory().available / (1024 * 1024 * 1024)  # GB
+                self.logger.info(f"Available memory before full validation: {available_mem:.2f} GB")
+                
+                # Force garbage collection
+                gc.collect()
                 
                 # Full validation
                 val_metrics = self.evaluate(val_dataloader)
@@ -224,6 +254,9 @@ class CyberBERTTrainer:
                 if patience_counter >= early_stopping_patience:
                     self.logger.info(f"Early stopping triggered after {epoch+1} epochs")
                     break
+                
+                # Force garbage collection between epochs
+                gc.collect()
             
             # Save training plots
             self._save_training_plots(save_dir)
@@ -238,10 +271,22 @@ class CyberBERTTrainer:
             self.model.save_pretrained(interrupted_path)
             self.tokenizer.save_pretrained(interrupted_path)
             return self.history
+        except Exception as e:
+            self.logger.error(f"Training error: {str(e)}")
+            # Try to save checkpoint on unexpected error
+            try:
+                error_path = os.path.join(save_dir, "error_checkpoint")
+                os.makedirs(error_path, exist_ok=True)
+                self.model.save_pretrained(error_path)
+                self.tokenizer.save_pretrained(error_path)
+                self.logger.info(f"Saved checkpoint at error to {error_path}")
+            except:
+                self.logger.error("Failed to save error checkpoint")
+            raise
     
     def _quick_evaluate(self, dataloader, max_batches=None):
         """
-        Quick evaluation for periodic validation during training
+        Quick evaluation for periodic validation during training - memory-optimized version
         
         Returns:
             Tuple of (loss, accuracy, f1_score)
@@ -253,50 +298,112 @@ class CyberBERTTrainer:
         all_preds = []
         all_labels = []
         
+        # Memory optimization - explicitly collect garbage before evaluation
+        gc.collect()
+        
+        # Check if we're on a memory-constrained system
+        is_memory_constrained = psutil.virtual_memory().available < 2 * 1024 * 1024 * 1024  # < 2GB free
+        
+        # For very memory-constrained environments, process one sample at a time
+        effective_batch_size = 1 if is_memory_constrained else None
+        
         with torch.no_grad():
             for i, batch in enumerate(dataloader):
                 if max_batches is not None and i >= max_batches:
                     break
-                    
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
                 
-                # Handle both 'labels' and 'label' keys for backward compatibility
-                if 'labels' in batch:
-                    labels = batch['labels'].to(self.device)
-                elif 'label' in batch:
-                    labels = batch['label'].to(self.device)
+                # For memory-constrained systems, process the batch one sample at a time
+                if effective_batch_size == 1 and len(batch['input_ids']) > 1:
+                    # Process one sample at a time
+                    for j in range(len(batch['input_ids'])):
+                        input_ids = batch['input_ids'][j:j+1].to(self.device)
+                        attention_mask = batch['attention_mask'][j:j+1].to(self.device)
+                        
+                        # Handle both 'labels' and 'label' keys
+                        if 'labels' in batch:
+                            labels = batch['labels'][j:j+1].to(self.device)
+                        elif 'label' in batch:
+                            labels = batch['label'][j:j+1].to(self.device)
+                        else:
+                            raise ValueError("Neither 'labels' nor 'label' found in batch data")
+                        
+                        outputs = self.model(
+                            input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            labels=labels
+                        )
+                        
+                        loss = outputs.loss
+                        total_val_loss += loss.item()
+                        
+                        logits = outputs.logits
+                        predictions = torch.argmax(logits, dim=-1)
+                        correct += (predictions == labels).sum().item()
+                        total += labels.size(0)
+                        
+                        # Collect for F1 score
+                        all_preds.extend(predictions.cpu().numpy())
+                        all_labels.extend(labels.cpu().numpy())
+                        
+                        # Memory optimization - clear cache after each sample
+                        del input_ids, attention_mask, labels, outputs, logits, predictions
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
                 else:
-                    raise ValueError("Neither 'labels' nor 'label' found in batch data")
+                    # Process the entire batch at once
+                    input_ids = batch['input_ids'].to(self.device)
+                    attention_mask = batch['attention_mask'].to(self.device)
+                    
+                    # Handle both 'labels' and 'label' keys
+                    if 'labels' in batch:
+                        labels = batch['labels'].to(self.device)
+                    elif 'label' in batch:
+                        labels = batch['label'].to(self.device)
+                    else:
+                        raise ValueError("Neither 'labels' nor 'label' found in batch data")
+                    
+                    outputs = self.model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        labels=labels
+                    )
+                    
+                    loss = outputs.loss
+                    total_val_loss += loss.item()
+                    
+                    logits = outputs.logits
+                    predictions = torch.argmax(logits, dim=-1)
+                    correct += (predictions == labels).sum().item()
+                    total += labels.size(0)
+                    
+                    # Collect for F1 score
+                    all_preds.extend(predictions.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+                    
+                    # Memory optimization - clear cache after each batch
+                    del input_ids, attention_mask, labels, outputs, logits, predictions
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
                 
-                outputs = self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels
-                )
-                
-                loss = outputs.loss
-                total_val_loss += loss.item()
-                
-                logits = outputs.logits
-                predictions = torch.argmax(logits, dim=-1)
-                correct += (predictions == labels).sum().item()
-                total += labels.size(0)
-                
-                # Collect for F1 score
-                all_preds.extend(predictions.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
+                # Periodically force garbage collection
+                if i % 5 == 0:  # Every 5 batches
+                    gc.collect()
         
         # Calculate metrics
         loss = total_val_loss / min(len(dataloader), max_batches or float('inf'))
         acc = correct / total if total > 0 else 0
-        f1 = f1_score(all_labels, all_preds, average='weighted') if len(all_preds) > 0 else 0
+        
+        # Handle case where we might not have enough data for F1 calculation
+        if len(all_preds) > 0 and len(np.unique(all_labels)) > 1:
+            f1 = f1_score(all_labels, all_preds, average='weighted')
+        else:
+            f1 = 0
         
         return loss, acc, f1
                 
     def evaluate(self, dataloader):
         """
-        Full evaluation with detailed metrics
+        Full evaluation with detailed metrics, memory-optimized for resource-constrained systems
         
         Args:
             dataloader: Validation data loader
@@ -309,37 +416,123 @@ class CyberBERTTrainer:
         all_predictions = []
         all_labels = []
         
+        # Memory optimization - collect garbage before evaluation
+        gc.collect()
+        
+        # Use smaller evaluation batch sizes for memory-constrained environments
+        is_memory_constrained = psutil.virtual_memory().available < 2 * 1024 * 1024 * 1024  # < 2GB free
+        
+        # For very memory-constrained systems, limit number of batches
+        max_batches = None
+        if is_memory_constrained:
+            available_gb = psutil.virtual_memory().available / (1024 * 1024 * 1024)
+            if available_gb < 1.0:  # Less than 1GB available
+                max_batches = 20
+                self.logger.warning(f"Very limited memory ({available_gb:.2f}GB), limiting evaluation to {max_batches} batches")
+            else:
+                max_batches = 50
+                self.logger.warning(f"Limited memory ({available_gb:.2f}GB), limiting evaluation to {max_batches} batches")
+                
+        batch_count = 0
+        
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Evaluating"):
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
-                
-                # Handle both 'labels' and 'label' keys for backward compatibility
-                if 'labels' in batch:
-                    labels = batch['labels'].to(self.device)
-                elif 'label' in batch:
-                    labels = batch['label'].to(self.device)
+                # Check if we've reached max batches
+                if max_batches is not None and batch_count >= max_batches:
+                    break
+                    
+                # For memory-constrained systems, process the batch one sample at a time
+                if is_memory_constrained and len(batch['input_ids']) > 1:
+                    # Process one sample at a time
+                    for j in range(len(batch['input_ids'])):
+                        input_ids = batch['input_ids'][j:j+1].to(self.device)
+                        attention_mask = batch['attention_mask'][j:j+1].to(self.device)
+                        
+                        # Handle both 'labels' and 'label' keys
+                        if 'labels' in batch:
+                            labels = batch['labels'][j:j+1].to(self.device)
+                        elif 'label' in batch:
+                            labels = batch['label'][j:j+1].to(self.device)
+                        else:
+                            raise ValueError("Neither 'labels' nor 'label' found in batch data")
+                        
+                        outputs = self.model(
+                            input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            labels=labels
+                        )
+                        
+                        total_val_loss += outputs.loss.item()
+                        
+                        logits = outputs.logits
+                        predictions = torch.argmax(logits, dim=-1)
+                        
+                        all_predictions.extend(predictions.cpu().numpy())
+                        all_labels.extend(labels.cpu().numpy())
+                        
+                        # Memory optimization - clear cache after each sample
+                        del input_ids, attention_mask, labels, outputs, logits, predictions
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
                 else:
-                    raise ValueError("Neither 'labels' nor 'label' found in batch data")
+                    # Process the entire batch
+                    input_ids = batch['input_ids'].to(self.device)
+                    attention_mask = batch['attention_mask'].to(self.device)
+                    
+                    # Handle both 'labels' and 'label' keys for backward compatibility
+                    if 'labels' in batch:
+                        labels = batch['labels'].to(self.device)
+                    elif 'label' in batch:
+                        labels = batch['label'].to(self.device)
+                    else:
+                        raise ValueError("Neither 'labels' nor 'label' found in batch data")
+                    
+                    outputs = self.model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        labels=labels
+                    )
+                    
+                    total_val_loss += outputs.loss.item()
+                    
+                    logits = outputs.logits
+                    predictions = torch.argmax(logits, dim=-1)
+                    
+                    all_predictions.extend(predictions.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+                    
+                    # Memory optimization - clear cache after each batch
+                    del input_ids, attention_mask, labels, outputs, logits, predictions
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
                 
-                outputs = self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels
-                )
+                # Increment batch counter
+                batch_count += 1
                 
-                total_val_loss += outputs.loss.item()
-                
-                logits = outputs.logits
-                predictions = torch.argmax(logits, dim=-1)
-                
-                all_predictions.extend(predictions.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
+                # Force garbage collection periodically
+                if batch_count % 5 == 0:  # Every 5 batches
+                    gc.collect()
+        
+        # Handle case where we limited the number of batches
+        divisor = min(batch_count, len(dataloader))
         
         # Calculate metrics
-        val_loss = total_val_loss / len(dataloader)
+        val_loss = total_val_loss / divisor if divisor > 0 else 0
+        
+        # Make sure we have enough valid predictions
+        if len(all_predictions) == 0 or len(all_labels) == 0:
+            self.logger.warning("No valid predictions or labels obtained during evaluation")
+            return {'loss': val_loss, 'accuracy': 0, 'f1_score': 0}
+            
+        # Calculate accuracy and F1 score
         accuracy = accuracy_score(all_labels, all_predictions)
-        f1 = f1_score(all_labels, all_predictions, average='weighted')
+        
+        # Check for edge cases that could cause F1 calculation to fail
+        if len(np.unique(all_labels)) <= 1:
+            self.logger.warning("Not enough unique classes for F1 score calculation")
+            f1 = 0
+        else:
+            f1 = f1_score(all_labels, all_predictions, average='weighted')
         
         metrics = {
             'loss': val_loss,
@@ -347,11 +540,14 @@ class CyberBERTTrainer:
             'f1_score': f1
         }
         
-        # Classification report
-        if len(np.unique(all_labels)) > 1:
-            class_names = [self.model.config.id2label[i] for i in range(len(self.model.config.id2label))]
-            report = classification_report(all_labels, all_predictions, target_names=class_names)
-            self.logger.info("\nClassification Report:\n" + report)
+        # Classification report - only if we have enough data
+        if len(np.unique(all_labels)) > 1 and len(all_labels) >= 10:
+            try:
+                class_names = [self.model.config.id2label[i] for i in range(len(self.model.config.id2label))]
+                report = classification_report(all_labels, all_predictions, target_names=class_names)
+                self.logger.info("\nClassification Report:\n" + report)
+            except Exception as e:
+                self.logger.warning(f"Could not generate classification report: {str(e)}")
         
         return metrics
     

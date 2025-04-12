@@ -8,7 +8,12 @@ from tqdm import tqdm
 import sys
 from .features import FlowFeatures
 from .utils import PacketInfo, preprocess_value
-from ...src.services.flow_labeler import FlowLabeler
+# Fix the relative import error by using an absolute import path
+import sys
+import os
+# Add the project root to the path for absolute imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from src.services.flow_labeler import FlowLabeler
 
 class FlowMeter:
     """Manages network traffic flow metering and feature extraction"""
@@ -228,10 +233,10 @@ class FlowMeter:
                                 conn.execute("PRAGMA datetime_format = 'YYYY-MM-DD HH:mm:ss.SSS'")
                                 cursor = conn.cursor()
                                 
-                                # Complete ordered column list matching CSV format
+                                # Complete ordered column list matching CSV format - Fixed the column name discrepancy
                                 columns = [
                                     "Flow ID", "Timestamp", "Src IP", "Src Port", "Dst IP", "Dst Port", "Protocol",
-                                    "Flow Duration", "Total Fwd Packet", "Total Bwd packets", 
+                                    "Flow Duration", "Total Fwd Packets", "Total Bwd packets", 
                                     "Total Length of Fwd Packet", "Total Length of Bwd Packet",
                                     "Fwd Packet Length Max", "Fwd Packet Length Min", "Fwd Packet Length Mean",
                                     "Fwd Packet Length Std", "Bwd Packet Length Max", "Bwd Packet Length Min",
@@ -256,8 +261,20 @@ class FlowMeter:
                                     "Idle Min", "Label"
                                 ]
                                 
-                                # Prepare values in correct order
-                                values = [features[col] for col in columns]
+                                # Handle possible key error by checking if the key exists
+                                values = []
+                                for col in columns:
+                                    if col in features:
+                                        values.append(features[col])
+                                    else:
+                                        # If the key is missing in features, try alternative names
+                                        # Fix for "Total Fwd Packets" vs "Total Fwd Packet" mismatch
+                                        alt_col = col[:-1] if col.endswith('s') else col + 's'
+                                        if alt_col in features:
+                                            values.append(features[alt_col])
+                                        else:
+                                            values.append(None)  # Add null if no match found
+                                
                                 placeholders = ','.join(['?' for _ in columns])
                                 columns_sql = ','.join([f'"{col}"' for col in columns])
                                 
