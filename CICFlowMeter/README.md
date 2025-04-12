@@ -108,21 +108,12 @@ The tool generates a CSV file containing:
 
 ### Supported Traffic Classes
 
-1. BENIGN
-2. DDoS
-3. PortScan
-4. Bot
-5. Infiltration
-6. Web Attack - Brute Force
-7. Web Attack - XSS
-8. Web Attack - SQL Injection
-9. FTP-Patator
-10. SSH-Patator
-11. DoS slowloris
-12. DoS Slowhttptest
-13. DoS Hulk
-14. DoS GoldenEye
-15. Heartbleed
+1. BENIGN (Normal Traffic)
+2. DoS GoldenEye
+3. DoS Slowhttptest
+4. Portscan
+5. DDoS
+6. FTP-Patator/SSH-Patator
 
 ### Runtime Controls
 
