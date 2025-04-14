@@ -250,7 +250,7 @@ The model can detect and classify 6 different types of network traffic:
 The real-time classification can be performed using:
 
 ```bash
-python -m CICFlowMeter.CICFlowMeter.main -i eth0 -r -m models/trained_cyberbert/best_model
+python -m CICFlowMeter.CICFlowMeter.main -i Wi-Fi -o flows.csv -m models/cyberbert_model  
 ```
 
 ## Data Format
